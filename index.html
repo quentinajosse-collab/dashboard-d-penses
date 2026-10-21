@@ -136,10 +136,11 @@ function vCred(){
  const i=p.taux/1200;let crd=p.capital;for(let k=0;k<el;k++)crd-=m-crd*i;crd=Math.max(0,crd);
  return`<div style="margin-bottom:12px"><b>${esc(p.nom)}</b><div class="bar"><span class="t">Mensualité</span><span class="v">${eur2(m+p.assurance)}</span></div><div class="bar"><span class="t">Capital restant</span><span class="v">${eur(crd)}</span></div><div class="bar"><span class="t">Avancement</span><i style="width:${el/p.duree*40}%;--c:var(--bleu)"></i><span class="v">${el}/${p.duree} mois</span></div></div>`}).join(""):'<div class="empty">Aucun prêt</div>'}</div>`}
 function vData(){return`<div class="card" style="margin-top:0"><h3>Synchronisation PC ⇄ téléphone</h3>
- <p style="font-size:.85rem;color:var(--mut);margin-top:0">${D.depenses.length} opérations en mémoire sur ce téléphone.${D.exporte_le?`<br>Dernier import : ${esc(D.exporte_le)}`:""}</p>
+ <p style="font-size:.85rem;color:var(--mut);margin-top:0">En mémoire sur ce téléphone : ${D.depenses.length} opérations, ${D.salaires.length} salaires, ${D.prets.length} prêts, ${D.recurrentes.length} récurrentes.${D.exporte_le?`<br>Dernier import : ${esc(D.exporte_le)}`:""}</p>
  <div class="row"><button id="bImp" style="flex:1">📥 Importer (Excel, JSON ou XML)</button></div>
- <div class="row"><button class="sec" id="bJ" style="flex:1">📤 Exporter JSON</button><button class="sec" id="bX" style="flex:1">📤 Exporter XML</button></div>
- <div class="row"><button class="sec" id="bC" style="flex:1">📄 Exporter CSV</button></div>
+ <div class="row"><button id="bJ" style="flex:1">📦 Tout exporter pour le PC (1 fichier)</button></div>
+ <p style="font-size:.78rem;color:var(--mut);margin:0 0 8px">Un seul fichier JSON avec dépenses, récurrentes, salaires et prêts. Sur le PC : « 📱 Appli mobile » → Récupérer → ce fichier.</p>
+ <div class="row"><button class="sec" id="bX" style="flex:1">📤 Même export en XML</button><button class="sec" id="bC" style="flex:1">📄 CSV (opérations seules)</button></div>
  <p style="font-size:.78rem;color:var(--mut)">Tu peux sélectionner en une fois <b>mes_depenses.xlsx</b>, <b>mes_salaires.xlsx</b>, <b>credit_immobilier.xlsx</b> (et depenses_recurrences.xlsx) : chaque fichier est reconnu automatiquement. Sur le PC : onglet « 📱 Appli mobile » → télécharger puis importer ici. Après avoir saisi des dépenses au téléphone, exportez et rechargez le fichier dans le PC (l'import remplace les données du PC).</p></div>
  <div class="card"><h3>Zone sensible</h3><button class="sec" id="bClr" style="color:var(--rouge)">🗑 Effacer les données du téléphone</button></div>`}
 const sum=(a,k)=>a.reduce((t,x)=>t+(x[k]||0),0);
@@ -195,7 +196,7 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
  document.querySelectorAll("[data-delsal]").forEach(b=>b.onclick=()=>{if(confirm("Supprimer ce salaire ?")){D.salaires.splice(+b.dataset.delsal,1);save();render()}});
  g("#bAddSal",openSal);
- g("#bImp",()=>$("#file").click());g("#bJ",()=>dl("depenses.json",JSON.stringify(stamp(),null,1),"application/json"));
+ g("#bImp",()=>$("#file").click());g("#bJ",()=>dl("depenses_"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(stamp(),null,1),"application/json"));
  g("#bX",()=>dl("depenses.xml",toXml(stamp()),"application/xml"));g("#bC",()=>dl("depenses.csv",toCsv(),"text/csv"));
  g("#bClr",()=>{if(confirm("Effacer toutes les données du téléphone ?")){D={version:1,depenses:[],recurrentes:[],salaires:[],prets:[]};save();render()}})}
 function stamp(){return{...D,version:1,exporte_le:new Date().toISOString().slice(0,19).replace("T"," ")}}
