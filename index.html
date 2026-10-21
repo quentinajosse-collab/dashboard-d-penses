@@ -70,7 +70,7 @@ label{font-size:.75rem;color:var(--mut);font-weight:600;display:block;margin:8px
  <div class="row" style="margin-top:14px"><button type="button" class="sec" id="fCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
 </form></dialog>
 
-<input type="file" id="file" accept=".json,.xml" class="hide">
+<input type="file" id="file" accept=".json,.xml,.xlsx,.xlsm" multiple class="hide">
 <script>
 "use strict";
 const CATS=["Salaire","Prime / Remboursement","Virement reçu","Logement","Énergie & Charges","Assurances","Courses & Nourriture","Restaurants & Sorties","Transport & Carburant","Voiture (entretien/assurance)","Santé","Vêtements & Shopping","Loisirs & Abonnements","Voyages","Cadeaux","Impôts","Crédit","Frais bancaires","Retrait espèces","Virement émis","Divers"];
@@ -123,10 +123,10 @@ function vCred(){const sal=D.salaires.slice().sort((a,b)=>b.date.localeCompare(a
  <div class="card"><h3>Salaires récents</h3>${sal.length?sal.map(s=>`<div class="op"><div class="m"><b>${esc(s.employeur)}</b><small>${fdate(s.date)} · ${esc(s.type)}</small></div><span class="pos">${eur2(s.net)}</span></div>`).join(""):'<div class="empty">Aucun salaire</div>'}</div>`}
 function vData(){return`<div class="card" style="margin-top:0"><h3>Synchronisation PC ⇄ téléphone</h3>
  <p style="font-size:.85rem;color:var(--mut);margin-top:0">${D.depenses.length} opérations en mémoire sur ce téléphone.${D.exporte_le?`<br>Dernier import : ${esc(D.exporte_le)}`:""}</p>
- <div class="row"><button id="bImp" style="flex:1">📥 Importer (JSON/XML du PC)</button></div>
+ <div class="row"><button id="bImp" style="flex:1">📥 Importer (Excel, JSON ou XML)</button></div>
  <div class="row"><button class="sec" id="bJ" style="flex:1">📤 Exporter JSON</button><button class="sec" id="bX" style="flex:1">📤 Exporter XML</button></div>
  <div class="row"><button class="sec" id="bC" style="flex:1">📄 Exporter CSV</button></div>
- <p style="font-size:.78rem;color:var(--mut)">Sur le PC : onglet « 📱 Appli mobile » → télécharger puis importer ici. Après avoir saisi des dépenses au téléphone, exportez et rechargez le fichier dans le PC (l'import remplace les données du PC).</p></div>
+ <p style="font-size:.78rem;color:var(--mut)">Tu peux sélectionner en une fois <b>mes_depenses.xlsx</b>, <b>mes_salaires.xlsx</b>, <b>credit_immobilier.xlsx</b> (et depenses_recurrences.xlsx) : chaque fichier est reconnu automatiquement. Sur le PC : onglet « 📱 Appli mobile » → télécharger puis importer ici. Après avoir saisi des dépenses au téléphone, exportez et rechargez le fichier dans le PC (l'import remplace les données du PC).</p></div>
  <div class="card"><h3>Zone sensible</h3><button class="sec" id="bClr" style="color:var(--rouge)">🗑 Effacer les données du téléphone</button></div>`}
 const TABS=[["home","📊","Accueil",vHome],["list","🧾","Opérations",vList],["rec","🔁","Récurrent",vRec],["cred","🏠","Crédit",vCred],["data","🔄","Données",vData]];
 function render(){const t=TABS.find(x=>x[0]===tab);$("#app").innerHTML=t[3]();
@@ -156,10 +156,41 @@ function norm(p){const n=x=>parseFloat(x)||0;
  recurrentes:(p.recurrentes||[]).map(r=>({libelle:String(r.libelle??""),categorie:String(r.categorie??""),montant:n(r.montant),type:r.type||"Charge"})),
  salaires:(p.salaires||[]).map(s=>({date:String(s.date||"").slice(0,10),employeur:String(s.employeur??""),type:String(s.type??""),net:n(s.net),brut:n(s.brut),notes:String(s.notes??"")})),
  prets:(p.prets||[]).map(r=>({nom:String(r.nom??""),capital:n(r.capital),taux:n(r.taux),duree:n(r.duree)||240,date_debut:String(r.date_debut||"").slice(0,10),assurance:n(r.assurance),premiere_reelle:n(r.premiere_reelle)}))}}
-$("#file").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
- try{const raw=await f.text();const p=norm(f.name.toLowerCase().endsWith(".xml")||raw.trim().startsWith("<")?fromXml(raw):JSON.parse(raw));
-  if(D.depenses.length&&!confirm(`Remplacer les ${D.depenses.length} opérations du téléphone par les ${p.depenses.length} du fichier ?`))return;
-  D=p;save();render();alert("Import réussi : "+p.depenses.length+" opérations")}catch(err){alert("Fichier illisible : "+err.message)}};
+/* ---- Lecture Excel (.xlsx) hors connexion : zip + XML, sans bibliothèque ---- */
+async function unzip(buf){const dv=new DataView(buf),u8=new Uint8Array(buf);let e=u8.length-22;while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;
+ if(e<0)throw new Error("Fichier .xlsx invalide");const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const out={},td=new TextDecoder();
+ for(let i=0;i<n;i++){const meth=dv.getUint16(p+10,true),cs=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true);
+  const name=td.decode(u8.subarray(p+46,p+46+nl));p+=46+nl+xl+cl;
+  if(!/^xl\/(worksheets\/sheet\d+\.xml|sharedStrings\.xml|workbook\.xml)$/.test(name))continue;
+  const ds=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true),raw=u8.subarray(ds,ds+cs);
+  out[name]=meth===0?td.decode(raw):td.decode(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer())}
+ return out}
+function colIdx(r){let n=0;for(const c of r.replace(/\d/g,""))n=n*26+c.charCodeAt(0)-64;return n-1}
+function serialIso(v){const d=new Date(Math.round((v-25569)*86400000));return d.toISOString().slice(0,10)}
+async function readXlsx(buf){const z=await unzip(buf),P=s=>new DOMParser().parseFromString(s,"application/xml");
+ const ss=z["xl/sharedStrings.xml"]?[...P(z["xl/sharedStrings.xml"]).getElementsByTagName("si")].map(si=>[...si.getElementsByTagName("t")].map(t=>t.textContent).join("")):[];
+ const sh=z["xl/worksheets/sheet1.xml"]||z[Object.keys(z).find(k=>/worksheets/.test(k))];if(!sh)throw new Error("Feuille introuvable");
+ const rows=[...P(sh).getElementsByTagName("row")].map(r=>{const a=[];for(const c of r.getElementsByTagName("c")){const t=c.getAttribute("t"),v=c.getElementsByTagName("v")[0],i=c.getElementsByTagName("is")[0];let x="";
+  if(t==="s")x=ss[+v.textContent];else if(t==="inlineStr"&&i)x=i.textContent;else if(v){x=t==="str"||t==="d"||t==="e"?v.textContent:parseFloat(v.textContent)}a[colIdx(c.getAttribute("r"))]=x}return a});
+ if(!rows.length)return[];const hd=(rows[0]||[]).map(s=>String(s??"").trim());
+ return rows.slice(1).filter(r=>r.some(x=>x!==undefined&&x!=="")).map(r=>{const o={};hd.forEach((k,j)=>{if(k)o[k]=r[j]===undefined?"":r[j]});return o})}
+function iso(v){if(v===""||v==null)return"";if(typeof v==="number")return serialIso(v);const s=String(v).trim(),m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`:s.slice(0,10)}
+const nm=v=>typeof v==="number"?v:(parseFloat(String(v).replace(/\s/g,"").replace(",","."))||0);
+function fromRows(rows){const k=rows[0]?Object.keys(rows[0]):[];
+ if(k.includes("Employeur"))return{salaires:rows.map(r=>({date:iso(r.Date),employeur:String(r.Employeur),type:String(r.Type||""),net:nm(r.Montant_Net),brut:nm(r.Montant_Brut),notes:String(r.Notes||"")}))};
+ if(k.includes("Nom_Pret"))return{prets:rows.map(r=>({nom:String(r.Nom_Pret),capital:nm(r.Capital_Emprunte),taux:nm(r.Taux_Annuel),duree:nm(r.Duree_Mois)||240,date_debut:iso(r.Date_Debut),assurance:nm(r.Assurance_Mensuelle),premiere_reelle:nm(r.Premiere_Mensualite_Reelle)}))};
+ if(k.includes("Date")&&k.includes("Montant"))return{depenses:rows.map(r=>{const c=String(r.Categorie||"Divers");return{date:iso(r.Date),libelle:String(r.Libelle||""),categorie:c,montant:nm(r.Montant),sens:r.Sens==="Revenu"||r.Sens==="Dépense"?r.Sens:(REV.includes(c)?"Revenu":"Dépense")}})};
+ if(k.includes("Type")&&k.includes("Montant"))return{recurrentes:rows.map(r=>({libelle:String(r.Libelle||""),categorie:String(r.Categorie||""),montant:nm(r.Montant),type:String(r.Type||"Charge")}))};
+ throw new Error("colonnes non reconnues")}
+$("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";if(!files.length)return;const log=[];let nd={...D};
+ for(const f of files){try{const low=f.name.toLowerCase();let p;
+  if(low.endsWith(".xlsx")||low.endsWith(".xlsm"))p=fromRows(await readXlsx(await f.arrayBuffer()));
+  else{const raw=await f.text();p=norm(low.endsWith(".xml")||raw.trim().startsWith("<")?fromXml(raw):JSON.parse(raw));p.exporte_le=p.exporte_le||""}
+  for(const k of Object.keys(SEC))if(p[k]&&(p[k].length||low.match(/\.(json|xml)$/))){if(k==="depenses")p[k]=p[k].filter(o=>o.date);nd[k]=p[k];log.push(`${f.name} → ${p[k].length} ${k}`)}
+  if(p.exporte_le)nd.exporte_le=p.exporte_le}catch(err){log.push(`${f.name} : ${err.message}`)}}
+ if(!log.some(l=>l.includes("→")))return alert(log.join("\n"));
+ if(!confirm("Remplacer les données du téléphone par :\n"+log.join("\n")))return;
+ D=nd;save();render();alert("Import terminé :\n"+log.join("\n"))};
 
 /* Ajout */
 const dlg=$("#dlg");
