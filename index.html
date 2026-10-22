@@ -187,14 +187,17 @@ function barChart(it,o={}){if(!it.length)return'<div class="empty">Aucune donné
  const av=o.avg>0?`<line x1="0" x2="${W.toFixed(0)}" y1="${Y(o.avg).toFixed(1)}" y2="${Y(o.avg).toFixed(1)}" stroke="#64748b" stroke-width="1.5" stroke-dasharray="6 4"/>`:"";
  return`<div class="ch"><svg class="yax" width="38" height="${HT}">${yl}</svg><div class="sc${W<=avail+1?" fit":""}" data-end="1"><svg width="${W.toFixed(0)}" height="${HT}">${gl}${av}${bs}${lb}${zn}</svg></div></div>${o.lg||""}`}
 function areaChart(it,o={}){if(!it.length)return'<div class="empty">Aucune donnée</div>';
- const H=150,T=18,B=26,n=it.length,tk=nTicks(Math.max(...it.map(x=>x.v),0)),Y=v=>T+H-v/tk.top*H,W=Math.max(120,cw()-38),cell=W/n,HT=T+H+B,id="ga"+(++CID),X=i=>(i+.5)*cell;
+ const H=150,T=18,B=26,n=it.length,two=it.some(x=>x.v2!=null),tk=nTicks(Math.max(...it.map(x=>Math.max(x.v,x.v2||0)),0)),Y=v=>T+H-v/tk.top*H,W=Math.max(120,cw()-38),cell=W/n,HT=T+H+B,id="ga"+(++CID),X=i=>(i+.5)*cell;
  const[yl,gl]=gridY(tk,Y,W);let lb="",zn="",dots="";
- const d="M"+it.map((x,i)=>`${X(i).toFixed(1)} ${Y(x.v).toFixed(1)}`).join("L"),st=Math.max(1,Math.ceil(n/5)),idx=[];
- for(let i=0;i<n;i+=st)idx.push(i);if(n-1-idx[idx.length-1]>=st*.6)idx.push(n-1);
- it.forEach((x,i)=>{if(n<=31)dots+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(x.v).toFixed(1)}" r="3" fill="${o.col}"/>`;
-  zn+=`<rect class="hz" x="${(i*cell).toFixed(1)}" y="0" width="${cell.toFixed(1)}" height="${HT}"${x.tip?` data-tip="${esc(x.tip)}"`:""}/>`});
+ const ser=(k,col,gid)=>{const d="M"+it.map((x,i)=>`${X(i).toFixed(1)} ${Y(x[k]||0).toFixed(1)}`).join("L");
+  if(n<=31)it.forEach((x,i)=>{dots+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(x[k]||0).toFixed(1)}" r="3" fill="${col}"/>`});
+  return`<path d="${d}L${X(n-1).toFixed(1)} ${T+H}L${X(0).toFixed(1)} ${T+H}Z" fill="url(#${gid})"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round"/>`};
+ const gd=(gid,col,op)=>`<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity="${op}"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient>`;
+ const st=Math.max(1,Math.ceil(n/5)),idx=[];for(let i=0;i<n;i+=st)idx.push(i);if(n-1-idx[idx.length-1]>=st*.6)idx.push(n-1);
+ it.forEach((x,i)=>{zn+=`<rect class="hz" x="${(i*cell).toFixed(1)}" y="0" width="${cell.toFixed(1)}" height="${HT}"${x.tip?` data-tip="${esc(x.tip)}"`:""}/>`});
  idx.forEach(i=>{const x=Math.min(Math.max(X(i),16),W-16);lb+=`<text x="${x.toFixed(1)}" y="${T+H+15}" font-size="8.5" text-anchor="middle" fill="#64748b">${esc(it[i].l||"")}</text>`});
- return`<div class="ch"><svg class="yax" width="38" height="${HT}">${yl}</svg><div class="sc fit"><svg width="${W.toFixed(0)}" height="${HT}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${o.col}" stop-opacity=".42"/><stop offset="1" stop-color="${o.col}" stop-opacity="0"/></linearGradient></defs>${gl}<path d="${d}L${X(n-1).toFixed(1)} ${T+H}L${X(0).toFixed(1)} ${T+H}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${o.col}" stroke-width="2.5" stroke-linejoin="round"/>${dots}${lb}${zn}</svg></div></div>`}
+ const s1=ser("v",o.col,id),s2=two?ser("v2",o.col2,id+"b"):"";
+ return`<div class="ch"><svg class="yax" width="38" height="${HT}">${yl}</svg><div class="sc fit"><svg width="${W.toFixed(0)}" height="${HT}"><defs>${gd(id,o.col,.42)}${two?gd(id+"b",o.col2,.3):""}</defs>${gl}${s2}${s1}${dots}${lb}${zn}</svg></div></div>${o.lg||""}`}
 
 /* ---------- Périodes et regroupements (jour / semaine / mois / année) ---------- */
 const G=[["jour","Jour"],["semaine","Semaine"],["mois","Mois"],["annee","Année"]],UN={jour:"jour",semaine:"semaine",mois:"mois",annee:"an"},TT={jour:"jour",semaine:"semaine",mois:"mois",annee:"année"},BW={jour:18,semaine:34,mois:44,annee:64},CAP={jour:400,semaine:260,mois:240,annee:60};
@@ -263,8 +266,9 @@ function vHome(){
  const nb=mkBuckets(a,b,g).length,avg=nb?d/nb:0,ta=trunc(a,b,g),BK=aggr(L,ta,b,g);
  const main=barChart(BK.map((x,i)=>{const[l1,l2]=lbl(g,x.k,i);return{l1,l2,v:x.d,tip:bTip(g,x)}}),{col:"#dc2626",bw:BW[g],avg,vals:g==="mois"||g==="annee",
   lg:`<div class="lg"><span><i style="background:#dc2626"></i>Dépenses</span><span><i class="ds"></i>Moyenne : ${eur(avg)} / ${UN[g]}</span></div>`+(ta>a?`<div class="d" style="margin-top:6px">Affichage limité aux ${CAP[g]} derniers ${g==="jour"?"jours":g==="semaine"?"semaines":g==="mois"?"mois":"ans"} : choisis une période plus courte pour tout voir.</div>`:"")});
- const days=diffD(a,b)+1,g2=days<=92?"jour":days<=800?"semaine":"mois",B2=aggr(L,a,b,g2);let cum=0;
- const cu=areaChart(B2.map(x=>{cum+=x.d;return{l:lblShort(g2,x.k),v:cum,tip:tipHtml(ttl(g2,x.k),[tl("Cumul des dépenses",eur2(cum),TC.r),tl("Dépenses "+({jour:"du jour",semaine:"de la semaine",mois:"du mois"})[g2],eur2(x.d),TC.b)])}}),{col:"#dc2626"});
+ const days=diffD(a,b)+1,g2=days<=92?"jour":days<=800?"semaine":"mois",B2=aggr(L,a,b,g2);let cum=0,cum2=0;
+ const per_={jour:"du jour",semaine:"de la semaine",mois:"du mois"}[g2];
+ const cu=areaChart(B2.map(x=>{cum+=x.d;cum2+=x.r;return{l:lblShort(g2,x.k),v:cum,v2:cum2,tip:tipHtml(ttl(g2,x.k),[tl("Cumul des dépenses",eur2(cum),TC.r),tl("Cumul des revenus",eur2(cum2),TC.g),tl("Solde cumulé",eur2(cum2-cum),TC.b),tl("Dépenses "+per_,eur2(x.d)),...(x.r>0?[tl("Revenus "+per_,eur2(x.r))]:[])])}}),{col:"#dc2626",col2:"#0d9488",lg:'<div class="lg"><span><i style="background:#dc2626"></i>Dépenses cumulées</span><span><i style="background:#0d9488"></i>Revenus cumulés</span></div>'});
  const WD=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],WF=["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"],ws=Array(7).fill(0),wn=Array(7).fill(0),wd=Array(7).fill(0);
  for(let x=a;x<=b;x=addD(x,1))wd[dow(x)]++;
  L.filter(o=>!isRev(o)).forEach(o=>{const i=dow(o.date);ws[i]+=o.montant;wn[i]++});
@@ -277,7 +281,7 @@ function vHome(){
  <div class="kpi" style="--c:var(--orange)"><span>Moyenne / ${UN[g]}</span><b>${eur(avg)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Opérations</span><b>${L.length}</b></div></div>
  <div class="card"><h3>Récapitulatif par année</h3>${recap()}</div>
  <div class="card"><h3>Dépenses par ${TT[g]}</h3>${main}</div>
- <div class="card"><h3>Cumul des dépenses sur la période</h3>${cu}</div>
+ <div class="card"><h3>Cumul des dépenses et des revenus sur la période</h3>${cu}</div>
  <div class="card"><h3>Dépenses par catégorie</h3>${bars(cat,null,(k,v)=>tipHtml(k,[tl("Total",eur2(v),TC.r),tl("Part des dépenses",(d>0?v/d*100:0).toFixed(1).replace(".",",")+" %"),tl("Opérations",cnt[k]),tl("Moyenne",eur2(v/cnt[k]),TC.b)]))}</div>
  <div class="card"><h3>Cartographie mensuelle des dépenses</h3>${heat()}</div>
  <div class="card"><h3>Dépenses par jour de la semaine (moyenne)</h3>${wk}</div>`}
