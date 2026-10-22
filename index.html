@@ -54,6 +54,30 @@ label{font-size:.75rem;color:var(--mut);font-weight:600;display:block;margin:8px
 .seg{display:flex;gap:6px}.seg button{flex:1}
 .empty{text-align:center;color:var(--mut);padding:20px 0}
 .hide{display:none}
+.ch{display:flex;align-items:flex-start;user-select:none;-webkit-user-select:none}
+.ch .yax{flex:none}
+.sc{flex:1;min-width:0;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.sc svg{display:block}
+.sc.fit svg{touch-action:pan-y}
+.hz{fill:transparent;cursor:pointer}
+.hz:hover,.hz.act{fill:rgba(127,127,127,.16)}
+.lg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.72rem;color:var(--mut);margin-top:6px}
+.lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.lg i.ds{height:0;width:14px;border-radius:0;border-top:2px dashed #64748b;vertical-align:3px}
+.bar[data-tip]{cursor:pointer;padding:3px 4px;border-radius:8px}
+.bar.act{background:rgba(127,127,127,.12)}
+#tip{position:fixed;display:none;z-index:60;pointer-events:none;max-width:250px;background:#0f172a;color:#fff;border-radius:10px;padding:8px 11px;font-size:.76rem;line-height:1.4;box-shadow:0 8px 24px rgba(15,23,42,.35)}
+#tip .tt{font-weight:800;margin-bottom:3px}
+#tip .tl{display:flex;justify-content:space-between;gap:14px}
+#tip .tc{margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.18);color:#cbd5e1}
+.hm{display:grid;grid-template-columns:30px repeat(12,minmax(0,1fr));gap:3px;font-size:.56rem;align-items:center}
+.hm .hh{text-align:center;color:var(--mut);font-weight:600}
+.hm .hy{color:var(--mut);font-weight:700;font-size:.62rem}
+.hc{height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer}
+.hc.off{background:rgba(127,127,127,.08);cursor:default}
+.hc.act{outline:2px solid var(--bleu)}
+.hl{display:flex;align-items:center;gap:8px;font-size:.68rem;color:var(--mut);margin-top:8px}
+.hl i{flex:1;height:8px;border-radius:6px;background:linear-gradient(90deg,rgba(220,38,38,.1),rgba(220,38,38,.95))}
 .op .r{text-align:right}
 .d{font-size:.68rem;color:var(--mut);margin-top:2px}
 .d span{font-weight:700}
@@ -94,7 +118,7 @@ const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777"
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"]};
 const NUM=new Set(["montant","net","brut","capital","taux","duree","assurance","premiere_reelle"]);
 const KEY="depenses_v1";
-let D=load(),tab="home",mois=new Date().toISOString().slice(0,7),q="",sens="Dépense";
+let D=load(),tab="home",per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){alert("Stockage impossible")}}
 const $=s=>document.querySelector(s);
@@ -105,174 +129,87 @@ const isRev=o=>o.sens?o.sens==="Revenu":REV.includes(o.categorie);
 const fdate=d=>d?new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"short"}):"";
 const mlabel=m=>new Date(m+"-01T00:00:00").toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
 
-function bars(map,col){const e=Object.entries(map).sort((a,b)=>b[1]-a[1]);if(!e.length)return'<div class="empty">Aucune donnée</div>';const mx=e[0][1]||1;
- return e.map(([k,v],i)=>`<div class="bar" style="--c:${col||PAL[i%PAL.length]}"><span class="t">${esc(k)}</span><i style="width:${Math.max(3,v/mx*100*.45)}%"></i><span class="v">${eur(v)}</span></div>`).join("")}
-function monthly(){const m={};D.depenses.forEach(o=>{const k=o.date.slice(0,7);m[k]??={r:0,d:0};m[k][isRev(o)?"r":"d"]+=o.montant});
- const ks=Object.keys(m).sort().slice(-6);if(!ks.length)return'<div class="empty">Aucune donnée</div>';
- const mx=Math.max(...ks.flatMap(k=>[m[k].r,m[k].d]),1),W=300,H=130,bw=W/ks.length;
- let s=`<svg viewBox="0 0 ${W} ${H+22}" width="100%">`;
- ks.forEach((k,i)=>{const x=i*bw+bw*.12,w=bw*.34,hr=m[k].r/mx*H,hd=m[k].d/mx*H;
-  s+=`<rect x="${x}" y="${H-hr}" width="${w}" height="${hr}" rx="3" fill="#0d9488"/><rect x="${x+w+2}" y="${H-hd}" width="${w}" height="${hd}" rx="3" fill="#dc2626"/><text x="${i*bw+bw/2}" y="${H+14}" font-size="9" text-anchor="middle" fill="#64748b">${k.slice(5)}/${k.slice(2,4)}</text>`});
- return s+"</svg>"}
+function bars(map,col,tf){const e=Object.entries(map).sort((a,b)=>b[1]-a[1]);if(!e.length)return'<div class="empty">Aucune donnée</div>';const mx=e[0][1]||1;
+ return e.map(([k,v],i)=>`<div class="bar" style="--c:${col||PAL[i%PAL.length]}"${tf?` data-tip="${esc(tf(k,v))}"`:""}><span class="t">${esc(k)}</span><i style="width:${Math.max(3,v/mx*100*.45)}%"></i><span class="v">${eur(v)}</span></div>`).join("")}
 
-function months(){return[...new Set(D.depenses.map(o=>o.date.slice(0,7)).concat([new Date().toISOString().slice(0,7)]))].sort().reverse()}
-function vHome(){const L=D.depenses.filter(o=>o.date.startsWith(mois));
- const r=L.filter(isRev).reduce((a,o)=>a+o.montant,0),d=L.filter(o=>!isRev(o)).reduce((a,o)=>a+o.montant,0);
- const cat={};L.filter(o=>!isRev(o)).forEach(o=>cat[o.categorie]=(cat[o.categorie]||0)+o.montant);
- return`<div class="card" style="margin-top:0"><select id="mSel">${months().map(m=>`<option value="${m}" ${m===mois?"selected":""}>${mlabel(m)}</option>`).join("")}</select></div>
- <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div>
- <div class="kpi" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Épargne</span><b>${r>0?Math.round((r-d)/r*100):0} %</b></div></div>
- <div class="card"><h3>Dépenses par catégorie</h3>${bars(cat)}</div>
- <div class="card"><h3>6 derniers mois <span style="color:#0d9488">■ revenus</span> <span style="color:#dc2626">■ dépenses</span></h3>${monthly()}</div>`}
-function vList(){const L=D.depenses.map((o,i)=>({...o,i})).filter(o=>!q||(o.libelle+o.categorie).toLowerCase().includes(q)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,300);
- return`<div class="card" style="margin-top:0"><input id="q" placeholder="🔍 Rechercher…" value="${esc(q)}">
- ${L.length?L.map(o=>`<div class="op"><div class="m"><b>${esc(o.libelle)}</b><small>${fdate(o.date)} · ${esc(o.categorie)}</small></div><span class="${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><button class="del" data-del="${o.i}">✕</button></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`}
-function vRec(){const c=D.recurrentes.filter(r=>r.type==="Charge").reduce((a,r)=>a+r.montant,0),v=D.recurrentes.filter(r=>r.type==="Revenu").reduce((a,r)=>a+r.montant,0);
- return`<div class="kpis" style="margin-top:0"><div class="kpi" style="--c:var(--rouge)"><span>Charges / mois</span><b>${eur(c)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenus / mois</span><b>${eur(v)}</b></div></div>
- <div class="card"><h3>Récurrentes (lecture seule, modifiables sur PC)</h3>${D.recurrentes.length?D.recurrentes.map(r=>`<div class="op"><div class="m"><b>${esc(r.libelle)}</b><small>${esc(r.categorie||"")}</small></div><span class="${r.type==="Revenu"?"pos":"neg"}">${eur2(r.montant)}</span></div>`).join(""):'<div class="empty">Aucune récurrence</div>'}</div>`}
-function pmt(c,t,n){const i=t/1200;return i>0?c*i/(1-Math.pow(1+i,-n)):c/n}
-function vCred(){
- return`<div class="card" style="margin-top:0"><h3>Crédits</h3>${D.prets.length?D.prets.map(p=>{const m=pmt(p.capital,p.taux,p.duree),dd=new Date(p.date_debut+"T00:00:00"),el=Math.max(0,Math.min(p.duree,(new Date().getFullYear()-dd.getFullYear())*12+new Date().getMonth()-dd.getMonth()));
- const i=p.taux/1200;let crd=p.capital;for(let k=0;k<el;k++)crd-=m-crd*i;crd=Math.max(0,crd);
- return`<div style="margin-bottom:12px"><b>${esc(p.nom)}</b><div class="bar"><span class="t">Mensualité</span><span class="v">${eur2(m+p.assurance)}</span></div><div class="bar"><span class="t">Capital restant</span><span class="v">${eur(crd)}</span></div><div class="bar"><span class="t">Avancement</span><i style="width:${el/p.duree*40}%;--c:var(--bleu)"></i><span class="v">${el}/${p.duree} mois</span></div></div>`}).join(""):'<div class="empty">Aucun prêt</div>'}</div>`}
-function vData(){return`<div class="card" style="margin-top:0"><h3>Synchronisation PC ⇄ téléphone</h3>
- <p style="font-size:.85rem;color:var(--mut);margin-top:0">En mémoire sur ce téléphone : ${D.depenses.length} opérations, ${D.salaires.length} salaires, ${D.prets.length} prêts, ${D.recurrentes.length} récurrentes.${D.exporte_le?`<br>Dernier import : ${esc(D.exporte_le)}`:""}</p>
- <div class="row"><button id="bImp" style="flex:1">📥 Importer (Excel, JSON ou XML)</button></div>
- <div class="row"><button id="bJ" style="flex:1">📦 Tout exporter pour le PC (1 fichier)</button></div>
- <p style="font-size:.78rem;color:var(--mut);margin:0 0 8px">Un seul fichier JSON avec dépenses, récurrentes, salaires et prêts. Sur le PC : « 📱 Appli mobile » → Récupérer → ce fichier.</p>
- <div class="row"><button class="sec" id="bX" style="flex:1">📤 Même export en XML</button><button class="sec" id="bC" style="flex:1">📄 CSV (opérations seules)</button></div>
- <p style="font-size:.78rem;color:var(--mut)">Tu peux sélectionner en une fois <b>mes_depenses.xlsx</b>, <b>mes_salaires.xlsx</b>, <b>credit_immobilier.xlsx</b> (et depenses_recurrences.xlsx) : chaque fichier est reconnu automatiquement. Sur le PC : onglet « 📱 Appli mobile » → télécharger puis importer ici. Après avoir saisi des dépenses au téléphone, exportez et rechargez le fichier dans le PC (l'import remplace les données du PC).</p></div>
- <div class="card"><h3>Zone sensible</h3><button class="sec" id="bClr" style="color:var(--rouge)">🗑 Effacer les données du téléphone</button></div>`}
-const sum=(a,k)=>a.reduce((t,x)=>t+(x[k]||0),0);
-const fdy=d=>d?new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"";
-const mshort=d=>new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{month:"short",year:"2-digit"});
-const kfmt=v=>v>=1000?(v/1000).toFixed(1).replace(".",",")+" k€":Math.round(v)+" €";
-const pct=(a,b)=>b>0?(a-b)/b*100:null;
-const dsp=p=>p==null?"":`<span class="${p>=0?"pos":"neg"}">${p>=0?"+":""}${p.toFixed(1).replace(".",",")} %</span>`;
-let salY="all";
-function vbars(items,col){if(!items.length)return'<div class="empty">Aucune donnée</div>';
- const mx=Math.max(...items.map(i=>i[1]),1),W=300,H=100,bw=W/items.length,w=Math.min(bw*.64,56),fs=items.length>6?7.5:9;
- let s=`<svg viewBox="0 0 ${W} ${H+40}" width="100%">`;
- items.forEach(([k,v],i)=>{const h=Math.max(v/mx*H,1),cx=i*bw+bw/2;
-  s+=`<rect x="${cx-w/2}" y="${H-h+16}" width="${w}" height="${h}" rx="4" fill="${col}"/><text x="${cx}" y="${H-h+11}" font-size="${fs}" font-weight="700" text-anchor="middle" style="fill:var(--txt)">${kfmt(v)}</text><text x="${cx}" y="${H+32}" font-size="${fs}" text-anchor="middle" fill="#64748b">${esc(k)}</text>`});
- return s+"</svg>"}
-function line(pts,col){if(!pts.length)return'<div class="empty">Aucune donnée</div>';
- const W=300,H=120,P=8,n=pts.length,t=pts.map(p=>new Date(p.date+"T00:00:00").getTime()),t0=t[0],t1=t[n-1],mx=Math.max(...pts.map(p=>p.net),1);
- const X=i=>n===1?W/2:P+(t[i]-t0)/((t1-t0)||1)*(W-2*P),Y=v=>H-P-v/mx*(H-2*P-10);
- const d=pts.map((p,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(p.net).toFixed(1)}`).join("");
- let s=`<svg viewBox="0 0 ${W} ${H+20}" width="100%"><path d="${d}L${X(n-1).toFixed(1)} ${H-P}L${X(0).toFixed(1)} ${H-P}Z" fill="${col}" fill-opacity=".12"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round"/>`;
- if(n<=40)pts.forEach((p,i)=>s+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.net).toFixed(1)}" r="3" fill="${col}"/>`);
- return s+`<text x="${P}" y="${H+14}" font-size="9" fill="#64748b">${mshort(pts[0].date)}</text><text x="${W-P}" y="${H+14}" font-size="9" text-anchor="end" fill="#64748b">${mshort(pts[n-1].date)}</text><text x="${W-P}" y="10" font-size="9" text-anchor="end" fill="#64748b">max ${eur(mx)}</text></svg>`}
-function vSal(){
- const all=D.salaires.map((s,i)=>({...s,i})).filter(s=>s.date).sort((a,b)=>a.date.localeCompare(b.date));
- const ys=[...new Set(all.map(s=>s.date.slice(0,4)))].sort().reverse();
- if(salY!=="all"&&!ys.includes(salY))salY="all";
- const add=`<button id="bAddSal" style="width:100%;margin-bottom:12px">➕ Ajouter un salaire perçu</button>`;
- if(!all.length)return`${add}<div class="card"><div class="empty">Aucun salaire enregistré pour le moment.<br>Ajoutes-en un ou importe <b>mes_salaires.xlsx</b> depuis l'onglet Données.</div></div>`;
- const L=salY==="all"?all:all.filter(s=>s.date.startsWith(salY)),net=sum(L,"net"),brut=sum(L,"brut");
- const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),mo=new Set(l.map(s=>s.date.slice(0,7))).size||1,n=sum(l,"net");return{y,n,b:sum(l,"brut"),c:l.length,moy:n/mo}});
- YR.forEach((r,i)=>{const p=YR[i-1];r.dn=p?pct(r.n,p.n):null;r.dm=p?pct(r.moy,p.moy):null});
- const emp={};L.forEach(s=>{const k=s.employeur||"Non renseigné";emp[k]=(emp[k]||0)+s.net});
- return`${add}<div class="card" style="margin-top:0"><select id="sSel"><option value="all">Toutes les années</option>${ys.map(y=>`<option value="${y}" ${y===salY?"selected":""}>${y}</option>`).join("")}</select></div>
- <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Total net perçu</span><b>${eur(net)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Net moyen / versement</span><b>${eur(L.length?net/L.length:0)}</b></div>
- <div class="kpi" style="--c:var(--violet)"><span>Brut total</span><b>${brut>0?eur(brut):"—"}</b></div><div class="kpi" style="--c:var(--orange)"><span>Versements</span><b>${L.length}</b></div></div>
- <div class="card"><h3>Total net par année</h3>${vbars(YR.map(r=>[r.y,r.n]),"#0d9488")}</div>
- <div class="card"><h3>Moyenne mensuelle par année</h3>${vbars(YR.map(r=>[r.y,r.moy]),"#0284c7")}
- ${YR.slice().reverse().map(r=>`<div class="op"><div class="m"><b>${r.y}</b><small>${r.c} versement${r.c>1?"s":""} · moy. ${eur(r.moy)} / mois${r.b>0?` · brut ${eur(r.b)}`:""}</small></div><div class="r"><b>${eur(r.n)}</b>${r.dn==null?"":`<div class="d">${dsp(r.dn)} total · ${dsp(r.dm)} moy.</div>`}</div></div>`).join("")}
- <div class="d" style="margin-top:6px">Variation par rapport à l'année précédente.</div></div>
- <div class="card"><h3>Évolution des versements</h3>${line(L,"#0d9488")}</div>
- <div class="card"><h3>Répartition par employeur</h3>${bars(emp,null)}</div>
- <div class="card"><h3>Historique des versements</h3>${L.slice().reverse().slice(0,200).map(s=>`<div class="op"><div class="m"><b>${esc(s.employeur)}</b><small>${fdy(s.date)} · ${esc(s.type)}${s.brut>0?` · brut ${eur2(s.brut)}`:""}${s.notes?` · ${esc(s.notes)}`:""}</small></div><span class="pos">${eur2(s.net)}</span><button class="del" data-delsal="${s.i}">✕</button></div>`).join("")}</div>`}
-const TABS=[["home","🏠","Vue d'ensemble",vHome],["list","📋","Liste des dépenses",vList],["rec","🔁","Dépenses récurrentes",vRec],["cred","🏦","Suivi Crédit",vCred],["sal","💼","Suivi Salaire",vSal],["data","🔄","Données",vData]];
-function render(){const t=TABS.find(x=>x[0]===tab);$("#app").innerHTML=t[3]();
- const nv=$("#nav"),sl=nv.scrollLeft;nv.innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${x[0]===tab?"on":""}">${x[1]} ${x[2]}</button>`).join("");
- const on=nv.querySelector(".on");if(on)nv.scrollLeft=on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2;else nv.scrollLeft=sl;
- $("#sub").textContent=D.depenses.length+" opérations · hors connexion";bind()}
-function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();scrollTo(0,0)});
- const ms=$("#mSel");if(ms)ms.onchange=e=>{mois=e.target.value;render()};
- const qi=$("#q");if(qi)qi.oninput=e=>{q=e.target.value.toLowerCase();const p=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(p,p)};
- document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{if(confirm("Supprimer cette opération ?")){D.depenses.splice(+b.dataset.del,1);save();render()}});
- const g=(id,f)=>{const e=$(id);if(e)e.onclick=f};
- const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
- document.querySelectorAll("[data-delsal]").forEach(b=>b.onclick=()=>{if(confirm("Supprimer ce salaire ?")){D.salaires.splice(+b.dataset.delsal,1);save();render()}});
- g("#bAddSal",openSal);
- g("#bImp",()=>$("#file").click());g("#bJ",()=>dl("depenses_"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(stamp(),null,1),"application/json"));
- g("#bX",()=>dl("depenses.xml",toXml(stamp()),"application/xml"));g("#bC",()=>dl("depenses.csv",toCsv(),"text/csv"));
- g("#bClr",()=>{if(confirm("Effacer toutes les données du téléphone ?")){D={version:1,depenses:[],recurrentes:[],salaires:[],prets:[]};save();render()}})}
-function stamp(){return{...D,version:1,exporte_le:new Date().toISOString().slice(0,19).replace("T"," ")}}
-function dl(n,c,t){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([c],{type:t+";charset=utf-8"}));a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
-function xa(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
-function toXml(p){let s=`<?xml version="1.0" encoding="utf-8"?>\n<ExportDepenses version="${p.version}" exporte_le="${xa(p.exporte_le||"")}">\n`;
- for(const[k,[par,ch]]of Object.entries(SEC)){s+=`  <${par}>\n`;(p[k]||[]).forEach(r=>{s+=`    <${ch} ${Object.entries(r).map(([a,v])=>`${a}="${xa(v)}"`).join(" ")}/>\n`});s+=`  </${par}>\n`}
- return s+"</ExportDepenses>\n"}
-function fromXml(raw){const doc=new DOMParser().parseFromString(raw,"application/xml");if(doc.querySelector("parsererror"))throw new Error("XML invalide");
- const p={version:1,exporte_le:doc.documentElement.getAttribute("exporte_le")||""};
- for(const[k,[par,ch]]of Object.entries(SEC)){p[k]=[...doc.querySelectorAll(`${par} > ${ch}`)].map(el=>{const r={};for(const a of el.attributes){r[a.name]=NUM.has(a.name)?(parseFloat(a.value)||0):a.value}return r})}return p}
-function toCsv(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"';return"﻿Date;Libelle;Categorie;Montant;Sens\n"+D.depenses.map(o=>[o.date,q(o.libelle),q(o.categorie),String(o.montant).replace(".",","),o.sens].join(";")).join("\n")}
-function norm(p){const n=x=>parseFloat(x)||0;
- return{version:1,exporte_le:p.exporte_le||"",
- depenses:(p.depenses||[]).filter(o=>o.date).map(o=>({date:String(o.date).slice(0,10),libelle:String(o.libelle??""),categorie:String(o.categorie??"Divers"),montant:n(o.montant),sens:o.sens||(REV.includes(o.categorie)?"Revenu":"Dépense")})),
- recurrentes:(p.recurrentes||[]).map(r=>({libelle:String(r.libelle??""),categorie:String(r.categorie??""),montant:n(r.montant),type:r.type||"Charge"})),
- salaires:(p.salaires||[]).map(s=>({date:String(s.date||"").slice(0,10),employeur:String(s.employeur??""),type:String(s.type??""),net:n(s.net),brut:n(s.brut),notes:String(s.notes??"")})),
- prets:(p.prets||[]).map(r=>({nom:String(r.nom??""),capital:n(r.capital),taux:n(r.taux),duree:n(r.duree)||240,date_debut:String(r.date_debut||"").slice(0,10),assurance:n(r.assurance),premiere_reelle:n(r.premiere_reelle)}))}}
-/* ---- Lecture Excel (.xlsx) hors connexion : zip + XML, sans bibliothèque ---- */
-async function unzip(buf){const dv=new DataView(buf),u8=new Uint8Array(buf);let e=u8.length-22;while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;
- if(e<0)throw new Error("Fichier .xlsx invalide");const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const out={},td=new TextDecoder();
- for(let i=0;i<n;i++){const meth=dv.getUint16(p+10,true),cs=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true);
-  const name=td.decode(u8.subarray(p+46,p+46+nl));p+=46+nl+xl+cl;
-  if(!/^xl\/(worksheets\/sheet\d+\.xml|sharedStrings\.xml|workbook\.xml)$/.test(name))continue;
-  const ds=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true),raw=u8.subarray(ds,ds+cs);
-  out[name]=meth===0?td.decode(raw):td.decode(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer())}
- return out}
-function colIdx(r){let n=0;for(const c of r.replace(/\d/g,""))n=n*26+c.charCodeAt(0)-64;return n-1}
-function serialIso(v){const d=new Date(Math.round((v-25569)*86400000));return d.toISOString().slice(0,10)}
-async function readXlsx(buf){const z=await unzip(buf),P=s=>new DOMParser().parseFromString(s,"application/xml");
- const ss=z["xl/sharedStrings.xml"]?[...P(z["xl/sharedStrings.xml"]).getElementsByTagName("si")].map(si=>[...si.getElementsByTagName("t")].map(t=>t.textContent).join("")):[];
- const sh=z["xl/worksheets/sheet1.xml"]||z[Object.keys(z).find(k=>/worksheets/.test(k))];if(!sh)throw new Error("Feuille introuvable");
- const rows=[...P(sh).getElementsByTagName("row")].map(r=>{const a=[];for(const c of r.getElementsByTagName("c")){const t=c.getAttribute("t"),v=c.getElementsByTagName("v")[0],i=c.getElementsByTagName("is")[0];let x="";
-  if(t==="s")x=ss[+v.textContent];else if(t==="inlineStr"&&i)x=i.textContent;else if(v){x=t==="str"||t==="d"||t==="e"?v.textContent:parseFloat(v.textContent)}a[colIdx(c.getAttribute("r"))]=x}return a});
- if(!rows.length)return[];const hd=(rows[0]||[]).map(s=>String(s??"").trim());
- return rows.slice(1).filter(r=>r.some(x=>x!==undefined&&x!=="")).map(r=>{const o={};hd.forEach((k,j)=>{if(k)o[k]=r[j]===undefined?"":r[j]});return o})}
-function iso(v){if(v===""||v==null)return"";if(typeof v==="number")return serialIso(v);const s=String(v).trim(),m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`:s.slice(0,10)}
-const nm=v=>typeof v==="number"?v:(parseFloat(String(v).replace(/\s/g,"").replace(",","."))||0);
-function fromRows(rows){const k=rows[0]?Object.keys(rows[0]):[];
- if(k.includes("Employeur"))return{salaires:rows.map(r=>({date:iso(r.Date),employeur:String(r.Employeur),type:String(r.Type||""),net:nm(r.Montant_Net),brut:nm(r.Montant_Brut),notes:String(r.Notes||"")}))};
- if(k.includes("Nom_Pret"))return{prets:rows.map(r=>({nom:String(r.Nom_Pret),capital:nm(r.Capital_Emprunte),taux:nm(r.Taux_Annuel),duree:nm(r.Duree_Mois)||240,date_debut:iso(r.Date_Debut),assurance:nm(r.Assurance_Mensuelle),premiere_reelle:nm(r.Premiere_Mensualite_Reelle)}))};
- if(k.includes("Date")&&k.includes("Montant"))return{depenses:rows.map(r=>{const c=String(r.Categorie||"Divers");return{date:iso(r.Date),libelle:String(r.Libelle||""),categorie:c,montant:nm(r.Montant),sens:r.Sens==="Revenu"||r.Sens==="Dépense"?r.Sens:(REV.includes(c)?"Revenu":"Dépense")}})};
- if(k.includes("Type")&&k.includes("Montant"))return{recurrentes:rows.map(r=>({libelle:String(r.Libelle||""),categorie:String(r.Categorie||""),montant:nm(r.Montant),type:String(r.Type||"Charge")}))};
- throw new Error("colonnes non reconnues")}
-$("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";if(!files.length)return;const log=[];let nd={...D};
- for(const f of files){try{const low=f.name.toLowerCase();let p;
-  if(low.endsWith(".xlsx")||low.endsWith(".xlsm"))p=fromRows(await readXlsx(await f.arrayBuffer()));
-  else{const raw=await f.text();p=norm(low.endsWith(".xml")||raw.trim().startsWith("<")?fromXml(raw):JSON.parse(raw));p.exporte_le=p.exporte_le||""}
-  for(const k of Object.keys(SEC))if(p[k]&&(p[k].length||low.match(/\.(json|xml)$/))){if(k==="depenses")p[k]=p[k].filter(o=>o.date);nd[k]=p[k];log.push(`${f.name} → ${p[k].length} ${k}`)}
-  if(p.exporte_le)nd.exporte_le=p.exporte_le}catch(err){log.push(`${f.name} : ${err.message}`)}}
- if(!log.some(l=>l.includes("→")))return alert(log.join("\n"));
- if(!confirm("Remplacer les données du téléphone par :\n"+log.join("\n")))return;
- D=nd;save();render();alert("Import terminé :\n"+log.join("\n"))};
+/* ---------- Dates (chaînes ISO AAAA-MM-JJ, sans décalage de fuseau) ---------- */
+function TODAY(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)}
+const D0=s=>new Date(s+"T12:00:00Z");
+function addD(s,n){const d=D0(s);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function diffD(a,b){return Math.round((D0(b)-D0(a))/864e5)}
+function dow(s){return(D0(s).getUTCDay()+6)%7}
+function nextM(m){let[y,o]=m.split("-").map(Number);o++;if(o>12){o=1;y++}return y+"-"+String(o).padStart(2,"0")}
+function addM(s,k){const d=D0(s),day=d.getUTCDate();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+k);const dm=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0,12)).getUTCDate();d.setUTCDate(Math.min(day,dm));return d.toISOString().slice(0,10)}
+function isoWeek(m){const th=addD(m,3),y=+th.slice(0,4),j=y+"-01-04",m1=addD(j,-dow(j));return[y,Math.floor(diffD(m1,m)/7)+1]}
+const MS=["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."],cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const OPS=()=>D.depenses.filter(o=>/^\d{4}-\d{2}-\d{2}$/.test(o.date||""));
 
-/* Ajout */
-const dlg=$("#dlg");
-function catsFor(s){return CATS.filter(c=>REV.includes(c)===(s==="Revenu"))}
-function setSens(s){sens=s;$("#sD").style.outline=s==="Dépense"?"2px solid var(--bleu)":"none";$("#sR").style.outline=s==="Revenu"?"2px solid var(--bleu)":"none";$("#fCat").innerHTML=catsFor(s).map(c=>`<option>${esc(c)}</option>`).join("")}
-$("#fab").onclick=()=>{if(tab==="sal")return openSal();$("#frm").reset();$("#fDate").value=new Date().toISOString().slice(0,10);setSens("Dépense");
- $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(o=>o.libelle))].map(l=>`<option value="${esc(l)}">`).join("");dlg.showModal()};
-$("#sD").onclick=()=>setSens("Dépense");$("#sR").onclick=()=>setSens("Revenu");$("#fCancel").onclick=()=>dlg.close();
-$("#fLib").onchange=e=>{const m=[...D.depenses].reverse().find(o=>o.libelle.toLowerCase()===e.target.value.toLowerCase());if(m){setSens(isRev(m)?"Revenu":"Dépense");$("#fCat").value=m.categorie}};
-$("#frm").onsubmit=e=>{const m=parseFloat($("#fMt").value);if(!(m>0)){e.preventDefault();return}
- D.depenses.push({date:$("#fDate").value,libelle:$("#fLib").value.trim(),categorie:$("#fCat").value,montant:Math.round(m*100)/100,sens});
- save();mois=$("#fDate").value.slice(0,7);render()};
-/* Ajout d'un salaire */
-const dlgS=$("#dlgS");
-function openSal(){$("#frmS").reset();$("#sDate").value=new Date().toISOString().slice(0,10);
- const last=D.salaires.filter(s=>s.date).sort((a,b)=>a.date.localeCompare(b.date)).pop();
- if(last){$("#sEmp").value=last.employeur;if([...$("#sType").options].some(o=>o.value===last.type))$("#sType").value=last.type}
- $("#emps").innerHTML=[...new Set(D.salaires.map(s=>s.employeur).filter(Boolean))].map(l=>`<option value="${esc(l)}">`).join("");dlgS.showModal()}
-$("#sCancel").onclick=()=>dlgS.close();
-$("#frmS").onsubmit=e=>{const n=parseFloat($("#sNet").value),b=parseFloat($("#sBrut").value)||0;if(!(n>0)){e.preventDefault();return}
- D.salaires.push({date:$("#sDate").value,employeur:$("#sEmp").value.trim()||"Non renseigné",type:$("#sType").value,net:Math.round(n*100)/100,brut:Math.round(b*100)/100,notes:""});save();salY="all";render()};
-render();
-if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
-</script>
-</body>
-</html>
+/* ---------- Infobulles (survol à la souris, toucher / glisser au doigt) ---------- */
+const TC={r:"#f87171",g:"#2dd4bf",b:"#38bdf8",v:"#a78bfa"};
+const tl=(k,v,c)=>`<div class="tl"><span>${k}</span><b${c?` style="color:${c}"`:""}>${v}</b></div>`;
+const topCats=(c,n=3)=>Object.entries(c||{}).sort((a,b)=>b[1]-a[1]).slice(0,n);
+function tipHtml(title,lines,cats){return`<div class="tt">${esc(title)}</div>${lines.join("")}${cats&&cats.length?`<div class="tc">${cats.map(([k,v])=>`<div class="tl"><span>${esc(k)}</span><span>${eur(v)}</span></div>`).join("")}</div>`:""}`}
+const tipEl=document.createElement("div");tipEl.id="tip";document.body.appendChild(tipEl);
+let actZ=null;
+function hideTip(){tipEl.style.display="none";if(actZ){actZ.classList.remove("act");actZ=null}}
+function showTip(z,x,y){if(actZ&&actZ!==z)actZ.classList.remove("act");actZ=z;z.classList.add("act");tipEl.innerHTML=z.getAttribute("data-tip");tipEl.style.display="block";
+ const w=tipEl.offsetWidth,h=tipEl.offsetHeight;let l=Math.min(Math.max(8,x-w/2),innerWidth-w-8),t=y-h-22;if(t<8)t=y+26;tipEl.style.left=l+"px";tipEl.style.top=t+"px"}
+function zoneAt(x,y){const e=document.elementFromPoint(x,y);return e&&e.closest?e.closest("[data-tip]"):null}
+document.addEventListener("pointerdown",e=>{const z=zoneAt(e.clientX,e.clientY);z?showTip(z,e.clientX,e.clientY):hideTip()});
+document.addEventListener("pointermove",e=>{const z=zoneAt(e.clientX,e.clientY);z?showTip(z,e.clientX,e.clientY):(actZ&&hideTip())});
+document.addEventListener("pointercancel",hideTip);
+document.addEventListener("scroll",hideTip,true);
+
+/* ---------- Graphiques SVG génériques ---------- */
+let CID=0;
+const cw=()=>Math.max(260,(($("#app")||{}).clientWidth||340)-30);
+function nTicks(mx){if(!(mx>0))return{top:3,t:[0,1,2,3]};const raw=mx/3,p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p,s=(m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p;return{top:s*3,t:[0,s,s*2,s*3]}}
+const axl=v=>v>=1000?(+(v/1000).toFixed(1)+"").replace(".",",")+"k€":(+v.toFixed(1)+"").replace(".",",")+"€";
+function gridY(tk,Y,W){let yl="",gl="";tk.t.forEach(t=>{const y=Y(t).toFixed(1);yl+=`<text x="34" y="${(Y(t)+3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">${axl(t)}</text>`;gl+=`<line x1="0" x2="${W.toFixed(0)}" y1="${y}" y2="${y}" style="stroke:var(--line)" stroke-dasharray="3 4"/>`});return[yl,gl]}
+function barChart(it,o={}){if(!it.length)return'<div class="empty">Aucune donnée</div>';
+ const H=150,T=18,B=34,n=it.length,mx=Math.max(...it.map(x=>x.v),o.avg||0,0),tk=nTicks(mx),Y=v=>T+H-v/tk.top*H,avail=Math.max(120,cw()-38),W=Math.max(avail,n*(o.bw||40)),cell=W/n,bwid=Math.min(cell*.72,48),HT=T+H+B;
+ const[yl,gl]=gridY(tk,Y,W);let bs="",lb="",zn="";
+ it.forEach((x,i)=>{const cx=i*cell+cell/2,h=x.v>0?Math.max(x.v/tk.top*H,1.5):0;
+  bs+=`<rect x="${(cx-bwid/2).toFixed(1)}" y="${(T+H-h).toFixed(1)}" width="${bwid.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${x.c||o.col}" fill-opacity=".92"/>`;
+  if(o.vals&&x.v>0)bs+=`<text x="${cx.toFixed(1)}" y="${(T+H-h-4).toFixed(1)}" font-size="9" font-weight="700" text-anchor="middle" style="fill:var(--txt)">${kfmt(x.v)}</text>`;
+  if(x.l1)lb+=`<text x="${cx.toFixed(1)}" y="${T+H+13}" font-size="8.5" text-anchor="middle" fill="#64748b">${esc(x.l1)}</text>`;
+  if(x.l2)lb+=`<text x="${cx.toFixed(1)}" y="${T+H+25}" font-size="8" text-anchor="middle" fill="#94a3b8">${esc(x.l2)}</text>`;
+  zn+=`<rect class="hz" x="${(i*cell).toFixed(1)}" y="0" width="${cell.toFixed(1)}" height="${HT}"${x.tip?` data-tip="${esc(x.tip)}"`:""}/>`});
+ const av=o.avg>0?`<line x1="0" x2="${W.toFixed(0)}" y1="${Y(o.avg).toFixed(1)}" y2="${Y(o.avg).toFixed(1)}" stroke="#64748b" stroke-width="1.5" stroke-dasharray="6 4"/>`:"";
+ return`<div class="ch"><svg class="yax" width="38" height="${HT}">${yl}</svg><div class="sc${W<=avail+1?" fit":""}" data-end="1"><svg width="${W.toFixed(0)}" height="${HT}">${gl}${av}${bs}${lb}${zn}</svg></div></div>${o.lg||""}`}
+function areaChart(it,o={}){if(!it.length)return'<div class="empty">Aucune donnée</div>';
+ const H=150,T=18,B=26,n=it.length,tk=nTicks(Math.max(...it.map(x=>x.v),0)),Y=v=>T+H-v/tk.top*H,W=Math.max(120,cw()-38),cell=W/n,HT=T+H+B,id="ga"+(++CID),X=i=>(i+.5)*cell;
+ const[yl,gl]=gridY(tk,Y,W);let lb="",zn="",dots="";
+ const d="M"+it.map((x,i)=>`${X(i).toFixed(1)} ${Y(x.v).toFixed(1)}`).join("L"),st=Math.max(1,Math.ceil(n/5)),idx=[];
+ for(let i=0;i<n;i+=st)idx.push(i);if(n-1-idx[idx.length-1]>=st*.6)idx.push(n-1);
+ it.forEach((x,i)=>{if(n<=31)dots+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(x.v).toFixed(1)}" r="3" fill="${o.col}"/>`;
+  zn+=`<rect class="hz" x="${(i*cell).toFixed(1)}" y="0" width="${cell.toFixed(1)}" height="${HT}"${x.tip?` data-tip="${esc(x.tip)}"`:""}/>`});
+ idx.forEach(i=>{const x=Math.min(Math.max(X(i),16),W-16);lb+=`<text x="${x.toFixed(1)}" y="${T+H+15}" font-size="8.5" text-anchor="middle" fill="#64748b">${esc(it[i].l||"")}</text>`});
+ return`<div class="ch"><svg class="yax" width="38" height="${HT}">${yl}</svg><div class="sc fit"><svg width="${W.toFixed(0)}" height="${HT}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${o.col}" stop-opacity=".42"/><stop offset="1" stop-color="${o.col}" stop-opacity="0"/></linearGradient></defs>${gl}<path d="${d}L${X(n-1).toFixed(1)} ${T+H}L${X(0).toFixed(1)} ${T+H}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${o.col}" stroke-width="2.5" stroke-linejoin="round"/>${dots}${lb}${zn}</svg></div></div>`}
+
+/* ---------- Périodes et regroupements (jour / semaine / mois / année) ---------- */
+const G=[["jour","Jour"],["semaine","Semaine"],["mois","Mois"],["annee","Année"]],UN={jour:"jour",semaine:"semaine",mois:"mois",annee:"an"},TT={jour:"jour",semaine:"semaine",mois:"mois",annee:"année"},BW={jour:18,semaine:34,mois:44,annee:64},CAP={jour:400,semaine:260,mois:240,annee:60};
+function perRange(){const T=TODAY(),L=OPS(),last=L.reduce((m,o)=>o.date>m?o.date:m,""),first=L.reduce((m,o)=>o.date<m?o.date:m,"9999-99-99"),hi=last>T?last:T,ref=last||T;let a,b;
+ if(per.startsWith("m:")){const m=per.slice(2);a=m+"-01";b=addD(nextM(m)+"-01",-1)}
+ else if(per.startsWith("y:")){const y=per.slice(2);a=y+"-01-01";b=y+"-12-31"}
+ else if(per==="all"){a=first==="9999-99-99"?T:first;b=hi}
+ else{b=ref;a=addD(addM(ref,-parseInt(per)),1)}
+ if(b>hi)b=hi;if(a>b)a=b;return{a,b}}
+function mkBuckets(a,b,g){const o=[];
+ if(g==="jour")for(let d=a;d<=b;d=addD(d,1))o.push(d);
+ else if(g==="semaine")for(let d=addD(a,-dow(a));d<=b;d=addD(d,7))o.push(d);
+ else if(g==="mois")for(let m=a.slice(0,7);m<=b.slice(0,7);m=nextM(m))o.push(m);
+ else for(let y=+a.slice(0,4);y<=+b.slice(0,4);y++)o.push(""+y);
+ return o}
+function trunc(a,b,g){const n=CAP[g];let m=a;
+ if(g==="jour")m=addD(b,-(n-1));else if(g==="semaine")m=addD(b,-7*(n-1));else if(g==="mois")m=addM(b.slice(0,7)+"-01",-(n-1));else m=(+b.slice(0,4)-(n-1))+"-01-01";
+ return m>a?m:a}
+const bkey=(g,d)=>g==="jour"?d:g==="semaine"?addD(d,-dow(d)):g==="mois"?d.slice(0,7):d.slice(0,4);
+function aggr(L,a,b,g){const keys=mkBuckets(a,b,g),M=new Map(keys.map(k=>[k,{k,d:0,r:0,n:0,c:{}}]));
+ L.forEach(o=>{const x=M.get(bkey(g,o.date));if(!x)return;x.n++;if(isRev(o))x.r+=o.montant;else{x.d+=o.montant;x.c[o.categorie]=(x.c[o.categorie]||0)+o.montant}});
+ return keys.map(k=>M.get(k))}
+function ttl(g,k){if(g==="jour")return cap(D0(k).toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"UTC"}));
+ if(g==="semaine"){const e=addD(k,6);return`Semaine ${isoWeek(k)[1]} · ${k.slice(8)}/${k.slice(5,7)} → ${e.slice(8)}/${e.slice(5,7)}/${e.slice(0,4)}`}
+ return g==="mois"?cap(mlabel(k)):k}
+function lbl(g,k,i){if(g==="jour"){const m=+k.slice(5,7);return[String(+k.slice(8)),(k.slice(8)==="01"||i===0)?MS[m-1].replace(".",""):""]}
+ if(g==="semaine")return[k.slice(8)+"/"+k.slice(5,7),"S"+isoWeek(
