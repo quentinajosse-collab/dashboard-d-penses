@@ -126,7 +126,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"]};
 const NUM=new Set(["montant","net","brut","capital","taux","duree","assurance","premiere_reelle"]);
-const KEY="depenses_v1";
+const VER="22.10-b",KEY="depenses_v1";
 let D=load(),tab="home",per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){alert("Stockage impossible")}}
@@ -335,7 +335,7 @@ const TABS=[["home","🏠","Vue d'ensemble",vHome],["list","📋","Liste des dé
 function render(){hideTip();const t=TABS.find(x=>x[0]===tab);$("#app").innerHTML=t[3]();
  const nv=$("#nav"),sl=nv.scrollLeft;nv.innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${x[0]===tab?"on":""}">${x[1]} ${x[2]}</button>`).join("");
  const on=nv.querySelector(".on");if(on)nv.scrollLeft=on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2;else nv.scrollLeft=sl;
- $("#sub").textContent=D.depenses.length+" opérations · hors connexion";bind();document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth})}
+ $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations · hors connexion";bind();document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth})}
 function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();scrollTo(0,0)});
  const ps=$("#pSel");if(ps)ps.onchange=e=>{per=e.target.value;render()};
  document.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{gran=b.dataset.g;render()});
@@ -421,7 +421,10 @@ $("#sCancel").onclick=()=>dlgS.close();
 $("#frmS").onsubmit=e=>{const n=parseFloat($("#sNet").value),b=parseFloat($("#sBrut").value)||0;if(!(n>0)){e.preventDefault();return}
  D.salaires.push({date:$("#sDate").value,employeur:$("#sEmp").value.trim()||"Non renseigné",type:$("#sType").value,net:Math.round(n*100)/100,brut:Math.round(b*100)/100,notes:""});save();salY="all";render()};
 render();
-if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+if("serviceWorker"in navigator){const had=!!navigator.serviceWorker.controller;let rl=0;
+ /* Si une nouvelle version prend le relais d'une ancienne, la page se recharge toute seule une fois. */
+ navigator.serviceWorker.addEventListener("controllerchange",()=>{if(had&&!rl){rl=1;location.reload()}});
+ addEventListener("load",()=>navigator.serviceWorker.register("sw.js").then(r=>r.update()).catch(()=>{}))}
 </script>
 </body>
 </html>
