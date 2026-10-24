@@ -115,7 +115,7 @@ select{border-radius:8px}
 .d span{font-weight:700}
 /* Listes : 10 lignes visibles maximum puis défilement (hauteur ajustée en JS) */
 .lst{position:relative;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin-top:8px;border-top:1px solid var(--line)}
-.op[data-rec],.op[data-sal],.op[data-int]{cursor:pointer}
+.op[data-rec],.op[data-sal],.op[data-int],.op[data-op]{cursor:pointer}
 .pg{display:flex;height:18px;border-radius:9px;overflow:hidden;background:var(--line)}
 .pg i{display:block;height:100%}
 .pgl{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.72rem;color:var(--mut);margin-top:8px}
@@ -132,7 +132,7 @@ dialog [required]:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,tra
 <button class="fab" id="fab" aria-label="Ajouter">+</button>
 
 <dialog id="dlg"><form method="dialog" id="frm">
- <h3 style="margin:0 0 4px">Nouvelle opération</h3>
+ <h3 id="opTitle" style="margin:0 0 4px">Nouvelle opération</h3>
  <div class="seg" style="margin-top:8px"><button type="button" class="sec" data-sens="Dépense" id="sD">Dépense</button><button type="button" class="sec" data-sens="Revenu" id="sR">Revenu</button></div>
  <label>Libellé</label><input id="fLib" required autocomplete="off" list="libs">
  <datalist id="libs"></datalist>
@@ -141,6 +141,7 @@ dialog [required]:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,tra
  <label>Date</label><input id="fDate" type="date" required>
  <div class="rqn">Les champs encadrés en rouge sont obligatoires.</div>
  <div class="row" style="margin-top:14px"><button type="button" class="sec" id="fCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
+ <button type="button" class="sec hide" id="fDel" style="width:100%;color:var(--rouge)">🗑 Supprimer cette opération</button>
 </form></dialog>
 
 <dialog id="dlgS"><form method="dialog" id="frmS">
@@ -357,7 +358,7 @@ function vHome(){
  <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div>
  <div class="kpi wide" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div></div>
  ${card("home-list","Opérations de la période · "+L.length,`<input id="q" placeholder="🔍 Rechercher…" value="${esc(q)}">
- <div class="lst">${L.length?L.map(o=>`<div class="op"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><button class="del" data-del="${o.i}">✕</button></div>`).join(""):'<div class="empty">Aucune opération sur cette période</div>'}</div>`)}`}
+ <div class="lst">${L.length?L.map(o=>`<div class="op" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join(""):'<div class="empty">Aucune opération sur cette période</div>'}</div>`)}`}
 
 /* ---------- Onglet 2 : analyse ---------- */
 function vAna(){
@@ -480,7 +481,7 @@ function vSal(){
  ${card("sal-imp","Cumul d'impôt payé en "+yr,impY>0?areaChart(cumI,{col:"#f97316"}):'<div class="empty">Aucun impôt saisi pour cette année</div>')}
  ${card("sal-yr","Net après impôt et impôt payé par année",stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.ap,c:"#0284c7"},{v:r.im,c:"#f97316"}],tip:tipHtml(r.y,[tl("Net après impôt",eur2(r.ap),TC.b),tl("Impôt sur le revenu payé",eur2(r.im),TC.o),tl("Net avant impôts",eur2(r.n),TC.g),tl("Net après / net avant impôts",rate(r.ap,r.n),TC.b),tl("Moyenne / mois",eur2(r.moy),TC.v),tl("Taux d'impôt",rate(r.im,r.n))])})),{bw:64,avg:avgAp,lg:'<div class="lg"><span><i style="background:#0284c7"></i>Net après impôt</span><span><i style="background:#f97316"></i>Impôt payé</span><span><i class="ds"></i>Net après impôt moyen : '+eur(avgAp)+' / an</span></div>'})+`<div class="lst">${yrRows}</div>`)}
  ${card("sal-emp","Répartition par employeur (net avant impôts)",bars(emp,null,(k,v)=>tipHtml(k,[tl("Total net avant impôts",eur2(v),TC.g),tl("Part",(net>0?v/net*100:0).toFixed(1).replace(".",",")+" %"),tl("Versements",ecn[k])])))}
- ${card("sal-hist","Historique des versements · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-sal="${s.i}"><div class="m"><b>${esc(s.employeur)}</b><small>${fdy(s.date)} · ${esc(s.type)}${s.brut>0?` · brut ${eur2(s.brut)}`:""}${s.notes?` · ${esc(s.notes)}`:""}</small></div><div class="r"><span class="pos">${eur2(s.net)}</span><div class="d">avant impôts${s.impot>0?` · impôt ${eur2(s.impot)} · après <span>${eur2(s.net-s.impot)}</span>`:""}</div></div><button class="del" data-delsal="${s.i}">✕</button></div>`).join("")}</div>`)}`}
+ ${card("sal-hist","Historique des versements · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-sal="${s.i}"><div class="m"><b>${esc(s.employeur)}</b><small>${fdy(s.date)} · ${esc(s.type)}${s.brut>0?` · brut ${eur2(s.brut)}`:""}${s.notes?` · ${esc(s.notes)}`:""}</small></div><div class="r"><span class="pos">${eur2(s.net)}</span><div class="d">avant impôts${s.impot>0?` · impôt ${eur2(s.impot)} · après <span>${eur2(s.net-s.impot)}</span>`:""}</div></div><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Intéressement / Participation ---------- */
 function vInt(){
  const all=(D.interessement||[]).map((s,i)=>({...s,i})).filter(s=>s.date).sort((a,b)=>a.date.localeCompare(b.date));
@@ -496,7 +497,7 @@ function vInt(){
  return`${add}<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Année</label><select data-u="iy"><option value="all">Toutes les années</option>${ys.map(y=>opt(y,y,UI.iy)).join("")}</select></div>
  <div class="kpis"><div class="kpi wide" style="--c:var(--bleu)"><span>Total intéressement + participation</span><b>${eur(tI+tP)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Intéressement</span><b>${eur(tI)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Participation</span><b>${eur(tP)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Placé (PEE / PERCO)</span><b>${eur(plc)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Perçu</span><b>${eur(tI+tP-plc)}</b></div></div>
  ${card("int-yr","Intéressement / participation par année",chart+`<div class="lst">${yrRows}</div>`)}
- ${card("int-hist","Historique · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-int="${s.i}"><div class="m"><b>${esc(s.type)}</b><small>${fdy(s.date)}${s.employeur?" · "+esc(s.employeur):""} · ${esc(s.dest||"")}${s.brut>0?" · brut "+eur2(s.brut):""}</small></div><span class="pos am">${eur2(s.montant)}</span><button class="del" data-delint="${s.i}">✕</button></div>`).join("")}</div>`)}`}
+ ${card("int-hist","Historique · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-int="${s.i}"><div class="m"><b>${esc(s.type)}</b><small>${fdy(s.date)}${s.employeur?" · "+esc(s.employeur):""} · ${esc(s.dest||"")}${s.brut>0?" · brut "+eur2(s.brut):""}</small></div><span class="pos am">${eur2(s.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Nouveaux onglets : Recherche, Santé, Impôts ---------- */
 const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all"};
 const nrm=s=>String(s??"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
@@ -505,7 +506,7 @@ const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?"selec
 
 /* Recherche par catégorie et / ou par dépense (libellé) sur tout l'historique */
 function vSearch(){
- const all=D.depenses.filter(o=>o.date),used={};all.forEach(o=>{used[o.categorie]=(used[o.categorie]||0)+1});
+ const all=D.depenses.map((o,i)=>({...o,i})).filter(o=>o.date),used={};all.forEach(o=>{used[o.categorie]=(used[o.categorie]||0)+1});
  const cats=Object.keys(used).sort((a,b)=>a.localeCompare(b,"fr")),ys=[...new Set(all.map(o=>o.date.slice(0,4)))].sort().reverse(),t=nrm(UI.sq.trim());
  if(UI.scat!=="all"&&!used[UI.scat])UI.scat="all";
  if(UI.syr!=="all"&&!ys.includes(UI.syr))UI.syr="all";
@@ -531,7 +532,7 @@ function vSearch(){
  <div class="kpi" style="--c:var(--orange)"><span>Moyenne</span><b>${n?eur2(tot/n):"—"}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Dernière</span><b style="font-size:1rem">${n?fdy(R[0].date):"—"}</b></div></div>
  ${card("s-chart","Évolution des résultats",chart)}
  ${top.length>1?card("s-lib","Détail par libellé",bars(Object.fromEntries(top),null,(k,v)=>tipHtml(k,[tl("Total",eur2(v),TC.b),tl("Opérations",LN[k]),tl("Moyenne",eur2(v/LN[k]),TC.o)]))):""}
- ${card("s-list","Résultats · "+n,`<div class="lst">${n?R.map(o=>`<div class="op"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span></div>`).join(""):'<div class="empty">Aucun résultat</div>'}</div>`)}`}
+ ${card("s-list","Résultats · "+n,`<div class="lst">${n?R.map(o=>`<div class="op" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join(""):'<div class="empty">Aucun résultat</div>'}</div>`)}`}
 
 /* ---------- Simulateur santé : reste à payer (Sécurité sociale + mutuelle Ipeka) ---------- */
 /* Valeurs par défaut INDICATIVES : à remplacer par les garanties du contrat Ipeka (touche une ligne). */
@@ -605,7 +606,7 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  const ps=$("#pSel");if(ps)ps.onchange=e=>{per=e.target.value;render()};
  document.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{gran=b.dataset.g;render()});
  const qi=$("#q");if(qi)qi.oninput=e=>{q=e.target.value.toLowerCase();const p=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(p,p)};
- document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{if(confirm("Supprimer cette opération ?")){D.depenses.splice(+b.dataset.del,1);save();render()}});
+ document.querySelectorAll("[data-op]").forEach(b=>b.onclick=()=>openOp(+b.dataset.op));
  const g=(id,f)=>{const e=$(id);if(e)e.onclick=f};
  document.querySelectorAll("[data-u]").forEach(el=>{const k=el.dataset.u,f=()=>{UI[k]=el.type==="number"?(el.value===""?"":parseFloat(el.value)):el.value;if(k==="hAct")UI.hPrix=null};
   if(el.dataset.live)el.oninput=()=>{f();const p=el.selectionStart;render();const n=document.querySelector('[data-u="'+k+'"]');n.focus();try{n.setSelectionRange(p,p)}catch(e){}};else el.onchange=()=>{f();render()}});
@@ -613,11 +614,11 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>openAct(b.dataset.act));
  g("#sReset",()=>{UI.sq="";UI.scat="all";UI.ssens="Dépense";UI.syr="all";render()});
  const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
- document.querySelectorAll("[data-delsal]").forEach(b=>b.onclick=ev=>{ev.stopPropagation();if(confirm("Supprimer ce salaire ?")){D.salaires.splice(+b.dataset.delsal,1);save();render()}});
+ 
  document.querySelectorAll("[data-sal]").forEach(b=>b.onclick=()=>openSal(+b.dataset.sal));
  document.querySelectorAll("[data-rec]").forEach(b=>b.onclick=()=>openRec(+b.dataset.rec));
  g("#bAddSal",()=>openSal(-1));g("#bAddRec",()=>openRec(-1));g("#bAddInt",()=>openInt(-1));
- document.querySelectorAll("[data-delint]").forEach(b=>b.onclick=ev=>{ev.stopPropagation();if(confirm("Supprimer cette ligne ?")){D.interessement.splice(+b.dataset.delint,1);save();render()}});
+ 
  document.querySelectorAll("[data-int]").forEach(b=>b.onclick=()=>openInt(+b.dataset.int));
  g("#bImp",()=>$("#file").click());g("#bJ",()=>dl("depenses_"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(stamp(),null,1),"application/json"));
  g("#bX",()=>dl("depenses.xml",toXml(stamp()),"application/xml"));g("#bC",()=>dl("depenses.csv",toCsv(),"text/csv"));
@@ -677,16 +678,23 @@ $("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";
  D=nd;save();render();alert("Import terminé :\n"+log.join("\n"))};
 
 /* Ajout d'une opération */
-const dlg=$("#dlg");
+const dlg=$("#dlg");let oIdx=-1;
 function catsFor(s){return CATS.filter(c=>REV.includes(c)===(s==="Revenu"))}
 function setSens(s){sens=s;$("#sD").style.outline=s==="Dépense"?"2px solid var(--bleu)":"none";$("#sR").style.outline=s==="Revenu"?"2px solid var(--bleu)":"none";$("#fCat").innerHTML=catsFor(s).map(c=>`<option>${esc(c)}</option>`).join("")}
-$("#fab").onclick=()=>{if(tab==="sal")return openSal(-1);if(tab==="int")return openInt(-1);if(tab==="rec")return openRec(-1);$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");
+$("#fab").onclick=()=>{if(tab==="sal")return openSal(-1);if(tab==="int")return openInt(-1);if(tab==="rec")return openRec(-1);oIdx=-1;$("#opTitle").textContent="Nouvelle opération";$("#fDel").classList.add("hide");$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");
  $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(o=>o.libelle))].map(l=>`<option value="${esc(l)}">`).join("");dlg.showModal()};
 $("#sD").onclick=()=>setSens("Dépense");$("#sR").onclick=()=>setSens("Revenu");$("#fCancel").onclick=()=>dlg.close();
-$("#fLib").onchange=e=>{const m=[...D.depenses].reverse().find(o=>o.libelle.toLowerCase()===e.target.value.toLowerCase());if(m){setSens(isRev(m)?"Revenu":"Dépense");$("#fCat").value=m.categorie}};
+$("#fLib").onchange=e=>{const m=[...D.depenses].reverse().find(o=>o.libelle.toLowerCase()===e.target.value.toLowerCase());if(m&&oIdx<0){setSens(isRev(m)?"Revenu":"Dépense");$("#fCat").value=m.categorie}};
 $("#frm").onsubmit=e=>{const m=parseFloat($("#fMt").value);if(!(m>0)){e.preventDefault();return}
- D.depenses.push({date:$("#fDate").value,libelle:$("#fLib").value.trim(),categorie:$("#fCat").value,montant:Math.round(m*100)/100,sens});
+ const o={date:$("#fDate").value,libelle:$("#fLib").value.trim(),categorie:$("#fCat").value,montant:Math.round(m*100)/100,sens};
+ if(oIdx>=0)D.depenses[oIdx]={...D.depenses[oIdx],...o};else D.depenses.push(o);
  save();per="m:"+$("#fDate").value.slice(0,7);render()};
+function openOp(i){oIdx=i;const o=D.depenses[i];$("#frm").reset();$("#opTitle").textContent="Modifier l'opération";setSens(isRev(o)?"Revenu":"Dépense");
+ $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(x=>x.libelle))].map(l=>`<option value="${esc(l)}">`).join("");
+ $("#fLib").value=o.libelle;$("#fMt").value=o.montant;
+ if(o.categorie&&![...$("#fCat").options].some(x=>x.value===o.categorie))$("#fCat").insertAdjacentHTML("beforeend",`<option>${esc(o.categorie)}</option>`);
+ $("#fCat").value=o.categorie;$("#fDate").value=o.date;$("#fDel").classList.remove("hide");dlg.showModal()}
+$("#fDel").onclick=()=>{if(oIdx>=0&&confirm("Supprimer cette opération ?")){D.depenses.splice(oIdx,1);save();dlg.close();render()}};
 /* Ajout / modification d'un salaire */
 const dlgS=$("#dlgS");let sIdx=-1;
 function updApr(){const n=parseFloat($("#sNet").value)||0,i=parseFloat($("#sImp").value)||0;$("#sApr").innerHTML=n>0?`Salaire net après impôts : <span>${eur2(n-i)}</span>`:""}
