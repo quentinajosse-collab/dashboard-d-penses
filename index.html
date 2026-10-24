@@ -26,8 +26,10 @@ main{padding:0 14px;margin-top:-38px;max-width:760px;margin-left:auto;margin-rig
 .fi{font-style:normal;flex:none;width:24px;height:24px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);font-size:.8rem;transition:transform .15s}
 .card.fold .fi{transform:rotate(-90deg)}
 .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.kpis.k3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.k3 .kpi b{font-size:1.02rem}
+.kpis.k3{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.k3 .kpi{padding:10px 5px}
+.k3 .kpi span{font-size:.6rem;letter-spacing:.02em}
+.k3 .kpi b{font-size:.95rem}
 .kpi{background:color-mix(in srgb,var(--c) 14%,var(--card));border-radius:14px;padding:12px;border:1px solid color-mix(in srgb,var(--c) 30%,var(--line));border-left:5px solid var(--c);box-shadow:0 4px 14px rgba(15,23,42,.06)}
 .kpi.wide{grid-column:1/-1}
 .kpi span{display:block;font-size:.7rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
@@ -124,6 +126,13 @@ select{border-radius:8px}
 dialog [required]{border:2px solid var(--rouge)!important}
 dialog [required]:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,transparent)}
 .rqn{font-size:.72rem;color:var(--rouge);margin:6px 0 0}
+/* Années du suivi salaire : case gauche (montants) + case droite (évolutions) */
+.yr{display:grid;grid-template-columns:1.25fr 1fr;column-gap:8px;margin:10px 0;font-size:.74rem;line-height:1.35}
+.yr>div{padding:5px 9px;background:color-mix(in srgb,var(--mut) 8%,var(--card));border-left:1px solid var(--line);border-right:1px solid var(--line);display:flex;align-items:center;flex-wrap:wrap;gap:0 4px}
+.yr>div:nth-child(-n+2){border-top:1px solid var(--line);border-radius:10px 10px 0 0}
+.yr>div:nth-last-child(-n+2){border-bottom:1px solid var(--line);border-radius:0 0 10px 10px}
+.yr .yy{font-size:.95rem;font-weight:800}
+.yr .mu{color:var(--mut)}
 </style>
 </head>
 <body>
@@ -217,7 +226,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="25.2-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="25.3-a",KEY="depenses_v1",FKEY="depenses_fold";
 let D=load(),tab="home",per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
@@ -468,35 +477,39 @@ const kfmt=v=>v>=1000?(v/1000).toFixed(1).replace(".",",")+" k€":Math.round(v)
 const pct=(a,b)=>b>0?(a-b)/b*100:null;
 const dsp=p=>p==null?"":`<span class="${p>=0?"pos":"neg"}">${p>=0?"+":""}${p.toFixed(1).replace(".",",")} %</span>`;
 const rate=(i,n)=>n>0?(i/n*100).toFixed(1).replace(".",",")+" %":"—";
+/* Suivi salaire : l'année en cours est sélectionnée par défaut */
 let salY=TODAY().slice(0,4);
 /* Impôt estimé d'une année (même calcul que l'onglet Impôts) */
 function taxEst(y){const F=D.fisc||{},parts=F.parts>0?F.parts:1,ratio=F.ratio>0?F.ratio:1.03,B=BAR[F.bar]||BAR["2025"],S=D.salaires.filter(s=>s.date&&s.date.startsWith(y)),cy=TODAY().slice(0,4),cum=sum(S,"net"),imp=sum(S,"impot"),m=S.reduce((x,s)=>Math.max(x,+s.date.slice(5,7)),0),rest=y===cy?12-m:0,auto=m?cum+cum/m*rest:0,proj=(F.ca>0&&y===cy)?F.ca:auto,R=irCalc(proj*ratio,parts,B);return{proj,ir:R.ir,imp,reste:Math.max(0,R.ir-imp),taux:R.taux,tmi:R.tmi}}
 function taxCard(y){const t=taxEst(y);if(!(t.proj>0))return"";
- return card("sal-taxe","Impôt estimé en "+y,`<div class="kpis" style="margin-top:0"><div class="kpi wide" style="--c:var(--orange)"><span>Montant d'imposition estimé de l'année</span><b>${eur(t.ir)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Déjà payé</span><b>${eur(t.imp)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Reste à payer estimé</span><b>${eur(t.reste)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Taux moyen estimé</span><b>${fp(t.taux*100)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenu net estimé</span><b>${eur(t.proj)}</b></div></div><div class="d" style="margin-top:8px">Basé sur tes salaires et les hypothèses de l'onglet Impôts (parts, barème).</div>`)}
+ return card("sal-taxe","Impôt estimé en "+y,`<div class="kpis" style="margin-top:0"><div class="kpi wide" style="--c:var(--orange)"><span>Montant d'imposition estimé de l'année</span><b>${eur(t.ir)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Déjà payé</span><b>${eur(t.imp)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Reste à payer estimé</span><b>${eur(t.reste)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Taux moyen estimé</span><b>${fp(t.taux*100)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenu net annuel estimé</span><b>${eur(t.proj)}</b></div></div><div class="d" style="margin-top:8px">Basé sur tes salaires et les hypothèses de l'onglet Impôts (parts, barème).</div>`)}
 /* ---------- Salaires : brut, net avant impôts, impôt payé, net après impôt ---------- */
 function vSal(){
+ const cy=TODAY().slice(0,4);
  const all=D.salaires.map((s,i)=>({...s,i})).filter(s=>s.date).sort((a,b)=>a.date.localeCompare(b.date));
- const ys=[...new Set(all.map(s=>s.date.slice(0,4)))].sort().reverse();
- if(salY!=="all"&&!ys.includes(salY))salY="all";
+ const ys=[...new Set(all.map(s=>s.date.slice(0,4)))].sort().reverse(),ysel=[...new Set(ys.concat([cy]))].sort().reverse();
+ if(salY!=="all"&&!ysel.includes(salY))salY=cy;
  const add=`<button id="bAddSal" style="width:100%;margin-bottom:12px">➕ Ajouter un salaire perçu</button>`;
  if(!all.length)return`${add}<div class="card"><div class="empty">Aucun salaire enregistré pour le moment.<br>Ajoutes-en un ou importe <b>mes_salaires.xlsx</b> depuis l'onglet Données.</div></div>`;
  const L=salY==="all"?all:all.filter(s=>s.date.startsWith(salY)),net=sum(L,"net"),imp=sum(L,"impot"),brut=sum(L,"brut");
- const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),mo=new Set(l.map(s=>s.date.slice(0,7))).size||1,n=sum(l,"net"),im=sum(l,"impot");return{y,n,im,ap:n-im,b:sum(l,"brut"),c:l.length,moy:n/mo,moyAp:(n-im)/mo}});
- const avgAp=YR.length?YR.reduce((s,r)=>s+r.ap,0)/YR.length:0;
- YR.forEach((r,i)=>{const p=YR[i-1];r.dn=p?pct(r.n,p.n):null;r.dm=p?pct(r.moy,p.moy):null});
+ const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),mo=new Set(l.map(s=>s.date.slice(0,7))).size||1,n=sum(l,"net"),im=sum(l,"impot"),b=sum(l,"brut");return{y,n,im,ap:n-im,b,c:l.length,moy:n/mo,moyAp:(n-im)/mo,moyB:b/mo}});
+ YR.forEach((r,i)=>{const p=YR[i-1];r.d=p?{b:pct(r.b,p.b),mb:pct(r.moyB,p.moyB),n:pct(r.n,p.n),mn:pct(r.moy,p.moy),a:pct(r.ap,p.ap),ma:pct(r.moyAp,p.moyAp)}:null});
  const emp={},ecn={};L.forEach(s=>{const k=s.employeur||"Non renseigné";emp[k]=(emp[k]||0)+s.net;ecn[k]=(ecn[k]||0)+1});
  /* Cumul d'impôt payé sur l'année (année choisie, sinon la plus récente) */
- const yr=salY==="all"?ys[0]:salY,LY=all.filter(s=>s.date.startsWith(yr));let cum=0,cn=0;
+ const yr=salY==="all"?(ys[0]||cy):salY,LY=all.filter(s=>s.date.startsWith(yr));let cum=0,cn=0;
  const impY=sum(LY,"impot");
  const cumI=LY.map(s=>{cum+=s.impot||0;cn+=s.net;return{l:mshort(s.date),v:cum,tip:tipHtml(fdy(s.date),[tl("Impôt de ce versement",eur2(s.impot||0),TC.r),tl("Cumul d'impôt "+yr,eur2(cum),TC.o),tl("Net avant impôts cumulé",eur2(cn),TC.g),tl("Taux cumulé",rate(cum,cn))])}});
- const yrRows=YR.slice().reverse().map(r=>`<div class="op"><div class="m"><b>${r.y}</b><small>${r.c} versement${r.c>1?"s":""} · moy. ${eur(r.moy)} / mois${r.b>0?` · brut ${eur(r.b)}`:""}</small><div class="d">Impôt ${eur(r.im)} (${rate(r.im,r.n)}) · après impôt <span>${eur(r.ap)}</span></div></div><div class="r"><b>${eur(r.n)}</b><div class="d">avant impôts</div>${r.dn==null?"":`<div class="d">${dsp(r.dn)} total · ${dsp(r.dm)} moy.</div>`}</div></div>`).join("");
- return`${add}<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Année</label><select id="sSel"><option value="all">Toutes les années</option>${ys.map(y=>`<option value="${y}" ${y===salY?"selected":""}>${y}</option>`).join("")}</select></div>
- <div class="kpis k3"><div class="kpi" style="--c:var(--violet)"><span>Salaire brut</span><b>${brut>0?eur(brut):"—"}</b></div><div class="kpi" style="--c:var(--vert)"><span>Salaire net avant impôts</span><b>${eur(net)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Salaire net après impôts</span><b>${eur(net-imp)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Impôt payé (cumul)</span><b>${eur(imp)}</b></div>
+ /* Une année = case gauche (montants et moyennes mensuelles) + case droite (évolutions vs année précédente) */
+ const dd=(t,m)=>`${dsp(t)||"—"} <span class="mu">total</span> ${dsp(m)||"—"} <span class="mu">moy.</span>`;
+ const lf=(l,v,m,show)=>`<div>${l} <b>${show?eur(v):"—"}</b>${show?` <span class="mu">(${eur(m)} moy.)</span>`:""}</div>`;
+ const yrRows=YR.slice().reverse().map(r=>`<div class="yr"><div><span class="yy">${r.y}</span></div><div class="mu">Évolution vs ${+r.y-1}</div>${lf("Brut",r.b,r.moyB,r.b>0)}<div>${r.d?dd(r.d.b,r.d.mb):"—"}</div>${lf("Net avant impôts",r.n,r.moy,true)}<div>${r.d?dd(r.d.n,r.d.mn):"—"}</div>${lf("Net après impôts",r.ap,r.moyAp,true)}<div>${r.d?dd(r.d.a,r.d.ma):"—"}</div></div>`).join("");
+ return`${add}<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Année</label><select id="sSel"><option value="all">Toutes les années</option>${ysel.map(y=>`<option value="${y}" ${y===salY?"selected":""}>${y}</option>`).join("")}</select></div>
+ <div class="kpis k3"><div class="kpi" style="--c:var(--violet)"><span>Salaire brut</span><b>${brut>0?eur(brut):"—"}</b></div><div class="kpi" style="--c:var(--vert)"><span>Net avant impôts</span><b>${eur(net)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Net après impôts</span><b>${eur(net-imp)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Impôt payé (cumul)</span><b>${eur(imp)}</b></div>
  <div class="kpi" style="--c:var(--rouge)"><span>Taux d'impôt moyen</span><b>${rate(imp,net)}</b></div>
  <div class="kpi" style="--c:var(--bleu)"><span>Versements</span><b>${L.length}</b></div></div>
  ${taxCard(yr)}
  ${card("sal-imp","Cumul d'impôt payé en "+yr,impY>0?areaChart(cumI,{col:"#f97316"}):'<div class="empty">Aucun impôt saisi pour cette année</div>')}
- ${card("sal-yr","Net après impôt et impôt payé par année",stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.ap,c:"#0284c7"},{v:r.im,c:"#f97316"}],tip:tipHtml(r.y,[tl("Net après impôt",eur2(r.ap),TC.b),tl("Net après impôt moyen / mois",eur2(r.moyAp),TC.v),tl("Impôt sur le revenu payé",eur2(r.im),TC.o),tl("Taux d'impôt",rate(r.im,r.n))])})),{bw:64,avg:avgAp,lg:'<div class="lg"><span><i style="background:#0284c7"></i>Net après impôt</span><span><i style="background:#f97316"></i>Impôt payé</span><span><i class="ds"></i>Net après impôt moyen : '+eur(avgAp)+' / an</span></div>'})+`<div class="lst">${yrRows}</div>`)}
+ ${card("sal-yr","Net après impôt et impôt payé par année",stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.ap,c:"#0284c7"},{v:r.im,c:"#f97316"}],tip:tipHtml(r.y,[tl("Net après impôts",eur2(r.ap),TC.b),tl("Moyenne par mois",eur2(r.moyAp),TC.v),tl("Impôt sur le revenu",eur2(r.im),TC.o),tl("Taux d'impôt",rate(r.im,r.n))])})),{bw:64,lg:'<div class="lg"><span><i style="background:#0284c7"></i>Net après impôt</span><span><i style="background:#f97316"></i>Impôt payé</span></div>'})+`<div class="lst">${yrRows}</div>`)}
  ${card("sal-emp","Répartition par employeur (net avant impôts)",bars(emp,null,(k,v)=>tipHtml(k,[tl("Total net avant impôts",eur2(v),TC.g),tl("Part",(net>0?v/net*100:0).toFixed(1).replace(".",",")+" %"),tl("Versements",ecn[k])])))}
  ${card("sal-hist","Historique des versements · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-sal="${s.i}"><div class="m"><b>${esc(s.employeur)}</b><small>${fdy(s.date)} · ${esc(s.type)}${s.brut>0?` · brut ${eur2(s.brut)}`:""}${s.notes?` · ${esc(s.notes)}`:""}</small></div><div class="r"><span class="pos">${eur2(s.net)}</span><div class="d">avant impôts${s.impot>0?` · impôt ${eur2(s.impot)} · après <span>${eur2(s.net-s.impot)}</span>`:""}</div></div><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Intéressement / Participation ---------- */
@@ -517,7 +530,7 @@ function vInt(){
  ${card("int-hist","Historique · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-int="${s.i}"><div class="m"><b>${esc(s.type)}</b><small>${fdy(s.date)}${s.employeur?" · "+esc(s.employeur):""} · ${esc(s.dest||"")}${s.brut>0?" · brut "+eur2(s.brut):""}</small></div><span class="pos am">${eur2(s.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Nouveaux onglets : Recherche, Santé, Impôts ---------- */
 const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all"};
-const nrm=s=>String(s??"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const nrm=s=>String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 const fp=v=>(+v.toFixed(1)+"").replace(".",",")+" %";
 const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?"selected":""}>${esc(l)}</option>`;
 
@@ -606,11 +619,12 @@ function vTax(){
  <label>Barème</label><select data-d="fisc.bar">${Object.keys(BAR).map(k=>opt(k,BAR[k].n,F.bar||"2025")).join("")}</select>
  <div class="d" style="margin-top:8px">Estimation simplifiée : sans crédits ni réductions d'impôt, ni revenus du capital.</div>`,"margin-top:0")}
  ${has?`<div class="kpis"><div class="kpi" style="--c:var(--violet)"><span>Taux à mettre (année)</span><b>${fp(R.taux*100)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Taux pour la suite</span><b>${tauxR==null?"—":fp(tauxR)}</b></div>
- <div class="kpi" style="--c:var(--orange)"><span>Impôt estimé</span><b>${eur(R.ir)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenu net prévu</span><b>${eur(proj)}</b></div>
- <div class="kpi" style="--c:var(--rouge)"><span>Impôt déjà payé</span><b>${eur(imp)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Reste à payer</span><b>${eur(Math.max(0,R.ir-imp))}</b></div></div>
+ <div class="kpi" style="--c:var(--orange)"><span>Impôt estimé</span><b>${eur(R.ir)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenu net annuel estimé</span><b>${eur(proj)}</b></div>
+ <div class="kpi" style="--c:var(--rouge)"><span>Impôt déjà payé</span><b>${eur(imp)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Reste à payer estimé</span><b>${eur(Math.max(0,R.ir-imp))}</b></div></div>
  ${card("t-scen","Prévisions selon les revenus",`<div class="tw"><table class="rc"><thead><tr><th>Scénario</th><th>Revenu</th><th>Impôt</th><th>Taux</th><th>TMI</th></tr></thead><tbody>${sc}</tbody></table></div>`)}
  ${card("t-chart","Impôt estimé selon le revenu annuel",areaChart(pts,{col:"#f97316"}))}`:'<div class="card"><div class="empty">Aucun salaire pour cette année : ajoute-en dans Suivi Salaire ou saisis un revenu net annuel prévu ci-dessus.</div></div>'}`}
-const TABS=[["home","🏠","Vue d'ensemble",vHome],["ana","📊","Analyse",vAna],["rec","🔁","Dépenses récurrentes",vRec],["cred","🏦","Suivi Crédit",vCred],["sal","💼","Suivi Salaire",vSal],["sante","🩺","Santé",vSante],["tax","🧾","Impôts",vTax],["int","🎁","Intéressement / Participation",vInt],["data","🔄","Données",vData]];
+/* Ordre des onglets : … Suivi Salaire · Impôts · Intéressement / Participation · Santé (tout à droite) · Données */
+const TABS=[["home","🏠","Vue d'ensemble",vHome],["ana","📊","Analyse",vAna],["rec","🔁","Dépenses récurrentes",vRec],["cred","🏦","Suivi Crédit",vCred],["sal","💼","Suivi Salaire",vSal],["tax","🧾","Impôts",vTax],["int","🎁","Intéressement / Participation",vInt],["sante","🩺","Santé",vSante],["data","🔄","Données",vData]];
 /* Limite chaque liste et chaque tableau à 5 lignes visibles, le reste défile */
 function fitLists(){
  document.querySelectorAll(".lst").forEach(l=>{l.style.maxHeight="";if(!l.offsetParent)return;const k=l.children[5];if(k)l.style.maxHeight=(k.offsetTop+1)+"px"});
@@ -621,7 +635,7 @@ function render(){hideTip();const t=TABS.find(x=>x[0]===tab);$("#app").innerHTML
  const nv=$("#nav"),sl=nv.scrollLeft;nv.innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${x[0]===tab?"on":""}">${x[1]} ${x[2]}</button>`).join("");
  const on=nv.querySelector(".on");if(on)nv.scrollLeft=on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2;else nv.scrollLeft=sl;
  $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations";bind();$("#fab").style.display=["sante","tax"].includes(tab)?"none":"";document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth});fitLists()}
-function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();scrollTo(0,0)});
+function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{if(b.dataset.t==="sal"&&tab!=="sal")salY=TODAY().slice(0,4);tab=b.dataset.t;render();scrollTo(0,0)});
  document.querySelectorAll("[data-f]").forEach(h=>h.onclick=()=>{const c=h.parentElement,id=h.dataset.f;c.classList.toggle("fold");FOLD[id]=c.classList.contains("fold")?1:0;saveFold();hideTip();
   if(!FOLD[id]){c.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth})}fitLists()});
  const ps=$("#pSel");if(ps)ps.onchange=e=>{per=e.target.value;render()};
@@ -654,7 +668,7 @@ function toXml(p){let s=`<?xml version="1.0" encoding="utf-8"?>\n<ExportDepenses
 function fromXml(raw){const doc=new DOMParser().parseFromString(raw,"application/xml");if(doc.querySelector("parsererror"))throw new Error("XML invalide");
  const p={version:1,exporte_le:doc.documentElement.getAttribute("exporte_le")||""};
  for(const[k,[par,ch]]of Object.entries(SEC)){p[k]=[...doc.querySelectorAll(`${par} > ${ch}`)].map(el=>{const r={};for(const a of el.attributes){r[a.name]=NUM.has(a.name)?(parseFloat(a.value)||0):a.value}return r})}return p}
-function toCsv(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"';return"﻿Date;Libelle;Categorie;Montant;Sens\n"+D.depenses.map(o=>[o.date,q(o.libelle),q(o.categorie),String(o.montant).replace(".",","),o.sens].join(";")).join("\n")}
+function toCsv(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"';return"\uFEFFDate;Libelle;Categorie;Montant;Sens\n"+D.depenses.map(o=>[o.date,q(o.libelle),q(o.categorie),String(o.montant).replace(".",","),o.sens].join(";")).join("\n")}
 function norm(p){const n=x=>parseFloat(x)||0;
  return{sante:p.sante,fisc:p.fisc,version:1,exporte_le:p.exporte_le||"",
  depenses:(p.depenses||[]).filter(o=>o.date).map(o=>({date:String(o.date).slice(0,10),libelle:String(o.libelle??""),categorie:String(o.categorie??"Divers"),montant:n(o.montant),sens:o.sens||(REV.includes(o.categorie)?"Revenu":"Dépense")})),
