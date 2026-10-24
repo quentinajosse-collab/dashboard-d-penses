@@ -113,7 +113,7 @@ select{border-radius:8px}
 .lst .op:hover{background:color-mix(in srgb,var(--bleu) 8%,transparent)}
 .d{font-size:.68rem;color:var(--mut);margin-top:2px}
 .d span{font-weight:700}
-/* Listes : 10 lignes visibles maximum puis défilement (hauteur ajustée en JS) */
+/* Listes et tableaux : 5 lignes visibles maximum puis défilement (hauteur ajustée en JS) */
 .lst{position:relative;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin-top:8px;border-top:1px solid var(--line)}
 .op[data-rec],.op[data-sal],.op[data-int],.op[data-op]{cursor:pointer}
 .pg{display:flex;height:18px;border-radius:9px;overflow:hidden;background:var(--line)}
@@ -373,7 +373,8 @@ function vHome(){
  <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div>
  <div class="kpi wide" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div></div>
  ${card("home-list","Opérations de la période · "+L.length,`<input id="q" placeholder="🔍 Rechercher…" value="${esc(q)}">
- <div class="lst">${L.length?L.map(o=>`<div class="op" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join(""):'<div class="empty">Aucune opération sur cette période</div>'}</div>`)}`}
+ <div class="lst">${L.length?L.map(o=>`<div class="op" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join(""):'<div class="empty">Aucune opération sur cette période</div>'}</div>`)}
+ ${vSearch()}`}
 
 /* ---------- Onglet 2 : analyse ---------- */
 function vAna(){
@@ -609,13 +610,17 @@ function vTax(){
  <div class="kpi" style="--c:var(--rouge)"><span>Impôt déjà payé</span><b>${eur(imp)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Reste à payer</span><b>${eur(Math.max(0,R.ir-imp))}</b></div></div>
  ${card("t-scen","Prévisions selon les revenus",`<div class="tw"><table class="rc"><thead><tr><th>Scénario</th><th>Revenu</th><th>Impôt</th><th>Taux</th><th>TMI</th></tr></thead><tbody>${sc}</tbody></table></div>`)}
  ${card("t-chart","Impôt estimé selon le revenu annuel",areaChart(pts,{col:"#f97316"}))}`:'<div class="card"><div class="empty">Aucun salaire pour cette année : ajoute-en dans Suivi Salaire ou saisis un revenu net annuel prévu ci-dessus.</div></div>'}`}
-const TABS=[["home","🏠","Vue d'ensemble",vHome],["ana","📊","Analyse",vAna],["rec","🔁","Dépenses récurrentes",vRec],["cred","🏦","Suivi Crédit",vCred],["sal","💼","Suivi Salaire",vSal],["search","🔎","Recherche",vSearch],["sante","🩺","Santé",vSante],["tax","🧾","Impôts",vTax],["int","🎁","Intéressement / Participation",vInt],["data","🔄","Données",vData]];
-/* Limite chaque liste à 10 lignes visibles, le reste défile */
-function fitLists(){document.querySelectorAll(".lst").forEach(l=>{l.style.maxHeight="";if(!l.offsetParent)return;const k=l.children[10];if(k)l.style.maxHeight=(k.offsetTop+1)+"px"})}
+const TABS=[["home","🏠","Vue d'ensemble",vHome],["ana","📊","Analyse",vAna],["rec","🔁","Dépenses récurrentes",vRec],["cred","🏦","Suivi Crédit",vCred],["sal","💼","Suivi Salaire",vSal],["sante","🩺","Santé",vSante],["tax","🧾","Impôts",vTax],["int","🎁","Intéressement / Participation",vInt],["data","🔄","Données",vData]];
+/* Limite chaque liste et chaque tableau à 5 lignes visibles, le reste défile */
+function fitLists(){
+ document.querySelectorAll(".lst").forEach(l=>{l.style.maxHeight="";if(!l.offsetParent)return;const k=l.children[5];if(k)l.style.maxHeight=(k.offsetTop+1)+"px"});
+ document.querySelectorAll(".tw").forEach(w=>{w.style.maxHeight="";if(!w.offsetParent)return;const rows=w.querySelectorAll("tbody tr");if(rows.length<=5)return;
+  w.style.maxHeight=(rows[5].getBoundingClientRect().top-w.getBoundingClientRect().top+w.scrollTop+1)+"px";
+  let top=0;w.querySelectorAll("thead tr").forEach(tr=>{tr.querySelectorAll("th").forEach(th=>{th.style.position="sticky";th.style.top=top+"px";th.style.zIndex=3});top+=tr.offsetHeight})})}
 function render(){hideTip();const t=TABS.find(x=>x[0]===tab);$("#app").innerHTML=t[3]();
  const nv=$("#nav"),sl=nv.scrollLeft;nv.innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${x[0]===tab?"on":""}">${x[1]} ${x[2]}</button>`).join("");
  const on=nv.querySelector(".on");if(on)nv.scrollLeft=on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2;else nv.scrollLeft=sl;
- $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations";bind();$("#fab").style.display=["search","sante","tax"].includes(tab)?"none":"";document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth});fitLists()}
+ $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations";bind();$("#fab").style.display=["sante","tax"].includes(tab)?"none":"";document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth});fitLists()}
 function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();scrollTo(0,0)});
  document.querySelectorAll("[data-f]").forEach(h=>h.onclick=()=>{const c=h.parentElement,id=h.dataset.f;c.classList.toggle("fold");FOLD[id]=c.classList.contains("fold")?1:0;saveFold();hideTip();
   if(!FOLD[id]){c.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth})}fitLists()});
