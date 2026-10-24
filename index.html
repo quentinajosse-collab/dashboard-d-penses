@@ -181,6 +181,21 @@ dialog [required]:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,tra
  <button type="button" class="sec" id="mReset" style="width:100%;color:var(--rouge)">↺ Valeurs par défaut</button>
 </form></dialog>
 
+<dialog id="dlgP"><form method="dialog" id="frmP">
+ <h3 id="pTitle" style="margin:0 0 4px">Nouveau prêt</h3>
+ <label>Nom du prêt</label><input id="pNom" autocomplete="off" required>
+ <label>Capital emprunté (€)</label><input id="pCap" type="number" step="0.01" min="1" inputmode="decimal" required>
+ <div class="row" style="margin:0"><div style="flex:1;min-width:0"><label>Taux annuel (%)</label><input id="pTaux" type="number" step="0.001" min="0" inputmode="decimal" required></div>
+ <div style="flex:1;min-width:0"><label>Durée (mois)</label><input id="pDur" type="number" step="1" min="1" inputmode="numeric" required></div></div>
+ <label>Date de la 1re mensualité</label><input id="pDeb" type="date" required>
+ <label>Assurance mensuelle (€)</label><input id="pAss" type="number" step="0.01" min="0" inputmode="decimal">
+ <label>1re mensualité réelle (€)</label><input id="pPrem" type="number" step="0.01" min="0" inputmode="decimal">
+ <div class="d" id="pMens" style="margin-top:6px"></div>
+ <div class="rqn">Les champs encadrés en rouge sont obligatoires.</div>
+ <div class="row" style="margin-top:14px"><button type="button" class="sec" id="pCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
+ <button type="button" class="sec hide" id="pDel" style="width:100%;color:var(--rouge)">🗑 Supprimer ce prêt</button>
+</form></dialog>
+
 <dialog id="dlgI"><form method="dialog" id="frmI">
  <h3 id="iTitle" style="margin:0 0 4px">Nouvel intéressement / participation</h3>
  <div class="seg" style="margin-top:8px"><button type="button" class="sec" id="iI">Intéressement</button><button type="button" class="sec" id="iP">Participation</button></div>
@@ -411,7 +426,7 @@ function crYear(P,yi){
  const kp=(l,v,c)=>`<div class="kpi" style="--c:var(--${c})"><span>${l}</span><b>${eur(v)}</b></div>`;
  return card("cr-yr","Remboursement "+y+" : capital / intérêts",sel+stackChart(it,{bw:26,lg})+'<div class="kpis">'+kp("Capital "+y,tc,"vert")+kp("Intérêts "+y,ti,"orange")+kp("Assurance "+y,ta,"violet")+kp("Total payé "+y,tc+ti+ta,"bleu")+'</div>')}
 function vCred(){
- if(!D.prets.length)return'<div class="card" style="margin-top:0"><div class="empty">Aucun prêt</div></div>';
+ if(!D.prets.length)return'<button id="bAddPret" style="width:100%;margin-bottom:12px">➕ Ajouter un prêt</button><div class="card"><div class="empty">Aucun prêt</div></div>';
  const T=TODAY();
  const P=D.prets.map(p=>{const s=sched(p),st=p.date_debut||T,el=Math.max(0,Math.min(s.n,(+T.slice(0,4)-+st.slice(0,4))*12+(+T.slice(5,7)-+st.slice(5,7))));
   return{p,m:s.m,n:s.n,S:s.S,el,as:p.assurance||0,k0:s.S[0].d.slice(0,7),map:new Map(s.S.map(r=>[r.d.slice(0,7),r]))}});
@@ -426,13 +441,14 @@ function vCred(){
  const crdI=[];for(let k=first;k<=end;k=nextM(k)){const v=P.reduce((s,x)=>s+(x.map.has(k)?x.map.get(k).crd:(k<x.k0?x.p.capital:0)),0),d=k+"-01";
   crdI.push({l:mshort(d),v,tip:tipHtml(cap(mlabel(k)),[tl("Capital restant dû",eur2(v),TC.b),tl("Capital déjà remboursé",eur2(cap0-v),TC.g)])})}
  const rem=x=>Math.max(0,x.p.capital-sum(x.S.slice(0,x.el),"cp")),pp=(a,b)=>b>0?Math.max(0,Math.min(100,a/b*100)):0,pr=v=>v.toFixed(0)+" %";
- const lrow=(nm,sub,c0,rb,tot)=>{const rs=Math.max(0,c0-rb);return`<tr${tot?' class="tot"':""}><th>${nm}${sub?`<div class="d">${sub}</div>`:""}<div class="pg mini"><i style="width:${pp(rb,c0).toFixed(1)}%;background:#0d9488"></i></div></th><td>${eur(c0)}</td><td class="pos">${eur(rb)}</td><td class="neg">${eur(rs)}</td><td>${pr(pp(rb,c0))}</td></tr>`};
- const loans=card("cr-loans","Mes prêts",`<div class="tw"><table class="rc"><thead><tr><th>Prêt</th><th>Prêt total</th><th>Remboursé</th><th>Restant dû</th><th>Avancé</th></tr></thead><tbody>${P.map(x=>lrow(esc(x.p.nom),eur2(x.m+x.as)+" / mois · fin "+esc(mlabel(x.S[x.n-1].d.slice(0,7))),x.p.capital,x.p.capital-rem(x))).join("")}${P.length>1?lrow("Total","",cap0,pc,1):""}</tbody></table></div>`);
+ const lrow=(nm,sub,c0,rb,tot,ix)=>{const rs=Math.max(0,c0-rb);return`<tr${tot?' class="tot"':` data-pret="${ix}" style="cursor:pointer"`}><th>${nm}${ix!=null?' <span style="color:var(--mut)">✎</span>':""}${sub?`<div class="d">${sub}</div>`:""}<div class="pg mini"><i style="width:${pp(rb,c0).toFixed(1)}%;background:#0d9488"></i></div></th><td>${eur(c0)}</td><td class="pos">${eur(rb)}</td><td class="neg">${eur(rs)}</td><td>${pr(pp(rb,c0))}</td></tr>`};
+ const loans=card("cr-loans","Mes prêts · touche une ligne pour la modifier",`<div class="tw"><table class="rc"><thead><tr><th>Prêt</th><th>Prêt total</th><th>Remboursé</th><th>Restant dû</th><th>Avancé</th></tr></thead><tbody>${P.map((x,ix)=>lrow(esc(x.p.nom),eur2(x.m+x.as)+" / mois · fin "+esc(mlabel(x.S[x.n-1].d.slice(0,7))),x.p.capital,x.p.capital-rem(x),0,ix)).join("")}${P.length>1?lrow("Total","",cap0,pc,1):""}</tbody></table></div>`);
  return`${card("cr-sum",P.length>1?"Mes crédits":esc(P[0].p.nom),`<div class="pg"><i style="width:${w1.toFixed(2)}%;background:#0d9488"></i><i style="width:${w2.toFixed(2)}%;background:#f97316"></i></div>
   <div class="pgl"><span><em style="background:#0d9488"></em>Capital remboursé <b>${eur(pc)}</b></span><span><em style="background:#f97316"></em>Intérêts payés <b>${eur(pI)}</b></span><span><em style="background:var(--line)"></em>Reste à payer <b>${eur(crd+(ti-pI))}</b></span></div>
   <div class="kpis"><div class="kpi" style="--c:var(--bleu)"><span>Mensualité (hors ass.)</span><b>${eur2(mens)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Avec assurance</span><b>${eur2(mens+ass)}</b></div>
   <div class="kpi" style="--c:var(--rouge)"><span>Capital restant dû</span><b>${eur(crd)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Intérêts restants</span><b>${eur(ti-pI)}</b></div>
   <div class="kpi" style="--c:var(--vert)"><span>Fin du prêt</span><b style="font-size:1rem">${esc(mlabel(end))}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Mois restants</span><b>${left}</b></div></div>`,"margin-top:0")}
+ <button id="bAddPret" style="width:100%;margin-bottom:12px">➕ Ajouter un prêt</button>
  ${loans}
  ${crYear(P,yi)}
  ${card("cr-crd","Évolution du capital restant dû",areaChart(crdI,{col:"#0284c7"}))}`}
@@ -617,7 +633,8 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  
  document.querySelectorAll("[data-sal]").forEach(b=>b.onclick=()=>openSal(+b.dataset.sal));
  document.querySelectorAll("[data-rec]").forEach(b=>b.onclick=()=>openRec(+b.dataset.rec));
- g("#bAddSal",()=>openSal(-1));g("#bAddRec",()=>openRec(-1));g("#bAddInt",()=>openInt(-1));
+ g("#bAddSal",()=>openSal(-1));g("#bAddRec",()=>openRec(-1));g("#bAddInt",()=>openInt(-1));g("#bAddPret",()=>openPret(-1));
+ document.querySelectorAll("[data-pret]").forEach(b=>b.onclick=()=>openPret(+b.dataset.pret));
  
  document.querySelectorAll("[data-int]").forEach(b=>b.onclick=()=>openInt(+b.dataset.int));
  g("#bImp",()=>$("#file").click());g("#bJ",()=>dl("depenses_"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(stamp(),null,1),"application/json"));
@@ -681,7 +698,7 @@ $("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";
 const dlg=$("#dlg");let oIdx=-1;
 function catsFor(s){return CATS.filter(c=>REV.includes(c)===(s==="Revenu"))}
 function setSens(s){sens=s;$("#sD").style.outline=s==="Dépense"?"2px solid var(--bleu)":"none";$("#sR").style.outline=s==="Revenu"?"2px solid var(--bleu)":"none";$("#fCat").innerHTML=catsFor(s).map(c=>`<option>${esc(c)}</option>`).join("")}
-$("#fab").onclick=()=>{if(tab==="sal")return openSal(-1);if(tab==="int")return openInt(-1);if(tab==="rec")return openRec(-1);oIdx=-1;$("#opTitle").textContent="Nouvelle opération";$("#fDel").classList.add("hide");$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");
+$("#fab").onclick=()=>{if(tab==="sal")return openSal(-1);if(tab==="int")return openInt(-1);if(tab==="cred")return openPret(-1);if(tab==="rec")return openRec(-1);oIdx=-1;$("#opTitle").textContent="Nouvelle opération";$("#fDel").classList.add("hide");$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");
  $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(o=>o.libelle))].map(l=>`<option value="${esc(l)}">`).join("");dlg.showModal()};
 $("#sD").onclick=()=>setSens("Dépense");$("#sR").onclick=()=>setSens("Revenu");$("#fCancel").onclick=()=>dlg.close();
 $("#fLib").onchange=e=>{const m=[...D.depenses].reverse().find(o=>o.libelle.toLowerCase()===e.target.value.toLowerCase());if(m&&oIdx<0){setSens(isRev(m)?"Revenu":"Dépense");$("#fCat").value=m.categorie}};
@@ -727,6 +744,21 @@ $("#iDel").onclick=()=>{if(iIdx>=0&&confirm("Supprimer cette ligne ?")){D.intere
 $("#frmI").onsubmit=e=>{const m=parseFloat($("#iNet").value);if(!(m>0)){e.preventDefault();return}
  const o={date:$("#iDate").value,type:iType,montant:Math.round(m*100)/100,brut:Math.round((parseFloat($("#iBrut").value)||0)*100)/100,dest:$("#iDest").value,employeur:$("#iEmp").value.trim()};
  D.interessement=D.interessement||[];if(iIdx>=0)D.interessement[iIdx]=o;else D.interessement.push(o);UI.iy="all";save();render()};
+/* Ajout / modification d'un prêt */
+const dlgP=$("#dlgP");let pIdx=-1;
+function updMens(){const c=parseFloat($("#pCap").value)||0,t=parseFloat($("#pTaux").value)||0,n=parseInt($("#pDur").value)||0,a=parseFloat($("#pAss").value)||0;
+ $("#pMens").innerHTML=c>0&&n>0?`Mensualité calculée : <span>${eur2(pmt(c,t,n))}</span>${a>0?` · avec assurance <span>${eur2(pmt(c,t,n)+a)}</span>`:""}`:""}
+["#pCap","#pTaux","#pDur","#pAss"].forEach(id=>$(id).oninput=updMens);
+function openPret(i=-1){pIdx=i;$("#frmP").reset();const p=i>=0?D.prets[i]:null;
+ $("#pTitle").textContent=p?"Modifier le prêt":"Nouveau prêt";
+ if(p){$("#pNom").value=p.nom||"";$("#pCap").value=p.capital;$("#pTaux").value=p.taux;$("#pDur").value=p.duree;$("#pDeb").value=p.date_debut||"";$("#pAss").value=p.assurance||"";$("#pPrem").value=p.premiere_reelle||""}
+ else $("#pDeb").value=TODAY();
+ $("#pDel").classList.toggle("hide",!p);dlgP.showModal();updMens()}
+$("#pCancel").onclick=()=>dlgP.close();
+$("#pDel").onclick=()=>{if(pIdx>=0&&confirm("Supprimer ce prêt ?")){D.prets.splice(pIdx,1);save();dlgP.close();render()}};
+$("#frmP").onsubmit=e=>{const c=parseFloat($("#pCap").value),n=parseInt($("#pDur").value);if(!(c>0)||!(n>0)){e.preventDefault();return}
+ const o={...(pIdx>=0?D.prets[pIdx]:{}),nom:$("#pNom").value.trim(),capital:Math.round(c*100)/100,taux:parseFloat($("#pTaux").value)||0,duree:n,date_debut:$("#pDeb").value,assurance:parseFloat($("#pAss").value)||0,premiere_reelle:parseFloat($("#pPrem").value)||0};
+ if(pIdx>=0)D.prets[pIdx]=o;else D.prets.push(o);save();render()};
 /* Modification d'un acte de santé */
 const dlgM=$("#dlgM");let mId=null;
 function openAct(id){mId=id;const a=getActs().find(x=>x.id===id);$("#mTitle").textContent=a.nom;$("#mBr").value=a.br;$("#mSec").value=a.sec;$("#mPf").value=a.pf||0;$("#mTy").value=a.t;$("#mV").value=a.v;$("#mPrix").value=a.prix;dlgM.showModal()}
