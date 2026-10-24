@@ -468,11 +468,11 @@ const kfmt=v=>v>=1000?(v/1000).toFixed(1).replace(".",",")+" k€":Math.round(v)
 const pct=(a,b)=>b>0?(a-b)/b*100:null;
 const dsp=p=>p==null?"":`<span class="${p>=0?"pos":"neg"}">${p>=0?"+":""}${p.toFixed(1).replace(".",",")} %</span>`;
 const rate=(i,n)=>n>0?(i/n*100).toFixed(1).replace(".",",")+" %":"—";
-let salY="all";
+let salY=TODAY().slice(0,4);
 /* Impôt estimé d'une année (même calcul que l'onglet Impôts) */
 function taxEst(y){const F=D.fisc||{},parts=F.parts>0?F.parts:1,ratio=F.ratio>0?F.ratio:1.03,B=BAR[F.bar]||BAR["2025"],S=D.salaires.filter(s=>s.date&&s.date.startsWith(y)),cy=TODAY().slice(0,4),cum=sum(S,"net"),imp=sum(S,"impot"),m=S.reduce((x,s)=>Math.max(x,+s.date.slice(5,7)),0),rest=y===cy?12-m:0,auto=m?cum+cum/m*rest:0,proj=(F.ca>0&&y===cy)?F.ca:auto,R=irCalc(proj*ratio,parts,B);return{proj,ir:R.ir,imp,reste:Math.max(0,R.ir-imp),taux:R.taux,tmi:R.tmi}}
 function taxCard(y){const t=taxEst(y);if(!(t.proj>0))return"";
- return card("sal-taxe","Impôt estimé en "+y,`<div class="kpis" style="margin-top:0"><div class="kpi wide" style="--c:var(--orange)"><span>Montant d'imposition estimé de l'année</span><b>${eur(t.ir)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Déjà payé</span><b>${eur(t.imp)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Reste à payer</span><b>${eur(t.reste)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Taux moyen estimé</span><b>${fp(t.taux*100)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenu net prévu</span><b>${eur(t.proj)}</b></div></div><div class="d" style="margin-top:8px">Basé sur tes salaires et les hypothèses de l'onglet Impôts (parts, barème).</div>`)}
+ return card("sal-taxe","Impôt estimé en "+y,`<div class="kpis" style="margin-top:0"><div class="kpi wide" style="--c:var(--orange)"><span>Montant d'imposition estimé de l'année</span><b>${eur(t.ir)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Déjà payé</span><b>${eur(t.imp)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Reste à payer estimé</span><b>${eur(t.reste)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Taux moyen estimé</span><b>${fp(t.taux*100)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenu net estimé</span><b>${eur(t.proj)}</b></div></div><div class="d" style="margin-top:8px">Basé sur tes salaires et les hypothèses de l'onglet Impôts (parts, barème).</div>`)}
 /* ---------- Salaires : brut, net avant impôts, impôt payé, net après impôt ---------- */
 function vSal(){
  const all=D.salaires.map((s,i)=>({...s,i})).filter(s=>s.date).sort((a,b)=>a.date.localeCompare(b.date));
@@ -481,7 +481,7 @@ function vSal(){
  const add=`<button id="bAddSal" style="width:100%;margin-bottom:12px">➕ Ajouter un salaire perçu</button>`;
  if(!all.length)return`${add}<div class="card"><div class="empty">Aucun salaire enregistré pour le moment.<br>Ajoutes-en un ou importe <b>mes_salaires.xlsx</b> depuis l'onglet Données.</div></div>`;
  const L=salY==="all"?all:all.filter(s=>s.date.startsWith(salY)),net=sum(L,"net"),imp=sum(L,"impot"),brut=sum(L,"brut");
- const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),mo=new Set(l.map(s=>s.date.slice(0,7))).size||1,n=sum(l,"net"),im=sum(l,"impot");return{y,n,im,ap:n-im,b:sum(l,"brut"),c:l.length,moy:n/mo}});
+ const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),mo=new Set(l.map(s=>s.date.slice(0,7))).size||1,n=sum(l,"net"),im=sum(l,"impot");return{y,n,im,ap:n-im,b:sum(l,"brut"),c:l.length,moy:n/mo,moyAp:(n-im)/mo}});
  const avgAp=YR.length?YR.reduce((s,r)=>s+r.ap,0)/YR.length:0;
  YR.forEach((r,i)=>{const p=YR[i-1];r.dn=p?pct(r.n,p.n):null;r.dm=p?pct(r.moy,p.moy):null});
  const emp={},ecn={};L.forEach(s=>{const k=s.employeur||"Non renseigné";emp[k]=(emp[k]||0)+s.net;ecn[k]=(ecn[k]||0)+1});
@@ -491,12 +491,12 @@ function vSal(){
  const cumI=LY.map(s=>{cum+=s.impot||0;cn+=s.net;return{l:mshort(s.date),v:cum,tip:tipHtml(fdy(s.date),[tl("Impôt de ce versement",eur2(s.impot||0),TC.r),tl("Cumul d'impôt "+yr,eur2(cum),TC.o),tl("Net avant impôts cumulé",eur2(cn),TC.g),tl("Taux cumulé",rate(cum,cn))])}});
  const yrRows=YR.slice().reverse().map(r=>`<div class="op"><div class="m"><b>${r.y}</b><small>${r.c} versement${r.c>1?"s":""} · moy. ${eur(r.moy)} / mois${r.b>0?` · brut ${eur(r.b)}`:""}</small><div class="d">Impôt ${eur(r.im)} (${rate(r.im,r.n)}) · après impôt <span>${eur(r.ap)}</span></div></div><div class="r"><b>${eur(r.n)}</b><div class="d">avant impôts</div>${r.dn==null?"":`<div class="d">${dsp(r.dn)} total · ${dsp(r.dm)} moy.</div>`}</div></div>`).join("");
  return`${add}<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Année</label><select id="sSel"><option value="all">Toutes les années</option>${ys.map(y=>`<option value="${y}" ${y===salY?"selected":""}>${y}</option>`).join("")}</select></div>
- <div class="kpis"><div class="kpi wide" style="--c:var(--violet)"><span>Salaire brut</span><b>${brut>0?eur(brut):"—"}</b></div><div class="kpi wide" style="--c:var(--vert)"><span>Salaire net avant impôts</span><b>${eur(net)}</b></div><div class="kpi wide" style="--c:var(--bleu)"><span>Salaire net après impôts</span><b>${eur(net-imp)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Impôt payé (cumul)</span><b>${eur(imp)}</b></div>
+ <div class="kpis k3"><div class="kpi" style="--c:var(--violet)"><span>Salaire brut</span><b>${brut>0?eur(brut):"—"}</b></div><div class="kpi" style="--c:var(--vert)"><span>Salaire net avant impôts</span><b>${eur(net)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Salaire net après impôts</span><b>${eur(net-imp)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Impôt payé (cumul)</span><b>${eur(imp)}</b></div>
  <div class="kpi" style="--c:var(--rouge)"><span>Taux d'impôt moyen</span><b>${rate(imp,net)}</b></div>
  <div class="kpi" style="--c:var(--bleu)"><span>Versements</span><b>${L.length}</b></div></div>
  ${taxCard(yr)}
  ${card("sal-imp","Cumul d'impôt payé en "+yr,impY>0?areaChart(cumI,{col:"#f97316"}):'<div class="empty">Aucun impôt saisi pour cette année</div>')}
- ${card("sal-yr","Net après impôt et impôt payé par année",stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.ap,c:"#0284c7"},{v:r.im,c:"#f97316"}],tip:tipHtml(r.y,[tl("Net après impôt",eur2(r.ap),TC.b),tl("Impôt sur le revenu payé",eur2(r.im),TC.o),tl("Net avant impôts",eur2(r.n),TC.g),tl("Net après / net avant impôts",rate(r.ap,r.n),TC.b),tl("Moyenne / mois",eur2(r.moy),TC.v),tl("Taux d'impôt",rate(r.im,r.n))])})),{bw:64,avg:avgAp,lg:'<div class="lg"><span><i style="background:#0284c7"></i>Net après impôt</span><span><i style="background:#f97316"></i>Impôt payé</span><span><i class="ds"></i>Net après impôt moyen : '+eur(avgAp)+' / an</span></div>'})+`<div class="lst">${yrRows}</div>`)}
+ ${card("sal-yr","Net après impôt et impôt payé par année",stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.ap,c:"#0284c7"},{v:r.im,c:"#f97316"}],tip:tipHtml(r.y,[tl("Net après impôt",eur2(r.ap),TC.b),tl("Net après impôt moyen / mois",eur2(r.moyAp),TC.v),tl("Impôt sur le revenu payé",eur2(r.im),TC.o),tl("Taux d'impôt",rate(r.im,r.n))])})),{bw:64,avg:avgAp,lg:'<div class="lg"><span><i style="background:#0284c7"></i>Net après impôt</span><span><i style="background:#f97316"></i>Impôt payé</span><span><i class="ds"></i>Net après impôt moyen : '+eur(avgAp)+' / an</span></div>'})+`<div class="lst">${yrRows}</div>`)}
  ${card("sal-emp","Répartition par employeur (net avant impôts)",bars(emp,null,(k,v)=>tipHtml(k,[tl("Total net avant impôts",eur2(v),TC.g),tl("Part",(net>0?v/net*100:0).toFixed(1).replace(".",",")+" %"),tl("Versements",ecn[k])])))}
  ${card("sal-hist","Historique des versements · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-sal="${s.i}"><div class="m"><b>${esc(s.employeur)}</b><small>${fdy(s.date)} · ${esc(s.type)}${s.brut>0?` · brut ${eur2(s.brut)}`:""}${s.notes?` · ${esc(s.notes)}`:""}</small></div><div class="r"><span class="pos">${eur2(s.net)}</span><div class="d">avant impôts${s.impot>0?` · impôt ${eur2(s.impot)} · après <span>${eur2(s.net-s.impot)}</span>`:""}</div></div><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Intéressement / Participation ---------- */
@@ -734,7 +734,7 @@ $("#sCancel").onclick=()=>dlgS.close();
 $("#sDel").onclick=()=>{if(sIdx>=0&&confirm("Supprimer ce salaire ?")){D.salaires.splice(sIdx,1);save();dlgS.close();render()}};
 $("#frmS").onsubmit=e=>{const n=parseFloat($("#sNet").value),b=parseFloat($("#sBrut").value)||0,im=parseFloat($("#sImp").value)||0;if(!(n>0)){e.preventDefault();return}
  const o={date:$("#sDate").value,employeur:$("#sEmp").value.trim()||"Non renseigné",type:$("#sType").value,net:Math.round(n*100)/100,impot:Math.round(im*100)/100,brut:Math.round(b*100)/100,notes:sIdx>=0?(D.salaires[sIdx].notes||""):""};
- if(sIdx>=0)D.salaires[sIdx]=o;else{D.salaires.push(o);salY="all"}
+ if(sIdx>=0)D.salaires[sIdx]=o;else{D.salaires.push(o);salY=o.date.slice(0,4)}
  save();render()};
 /* Ajout / modification intéressement ou participation */
 const dlgI=$("#dlgI");let iIdx=-1,iType="Intéressement";
