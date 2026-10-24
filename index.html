@@ -74,6 +74,8 @@ label{font-size:.75rem;color:var(--mut);font-weight:600;display:block;margin:8px
 .rc tbody tr:hover td,.rc tbody tr:hover th{background:color-mix(in srgb,var(--bleu) 9%,var(--card))}
 .rc tbody tr:last-child td,.rc tbody tr:last-child th{border-bottom:0}
 .rc tr.tot th,.rc tr.tot td{font-weight:800;border-top:2px solid var(--line);border-bottom:0}
+@media(max-width:480px){.rc th,.rc td{padding:8px 5px}.rc{font-size:.74rem}}
+.rc.wr tbody th{white-space:normal;text-align:left;min-width:128px}
 .rc .mini{height:6px;border-radius:4px;margin-top:5px;min-width:70px}
 /* Titres de sélection (comme « Période affichée » du tableau de bord Bourse) */
 .sh{font-size:.98rem;font-weight:800;margin:0 0 8px;letter-spacing:-.01em}
@@ -160,6 +162,18 @@ select{border-radius:8px}
  <button type="button" class="sec hide" id="rDel" style="width:100%;color:var(--rouge)">🗑 Supprimer cette récurrence</button>
 </form></dialog>
 
+<dialog id="dlgM"><form method="dialog" id="frmM">
+ <h3 id="mTitle" style="margin:0 0 4px">Acte</h3>
+ <label>Base de remboursement Sécu (€)</label><input id="mBr" type="number" step="0.01" inputmode="decimal">
+ <label>Taux Sécurité sociale (%)</label><input id="mSec" type="number" step="1" inputmode="decimal">
+ <label>Participation forfaitaire / franchise (€)</label><input id="mPf" type="number" step="0.01" inputmode="decimal">
+ <label>Garantie Ipeka</label><select id="mTy"><option value="pct">% de la base (Sécu comprise)</option><option value="forfait">Forfait en € en plus de la Sécu</option></select>
+ <label>Valeur de la garantie (% ou €)</label><input id="mV" type="number" step="0.01" inputmode="decimal">
+ <label>Prix habituel (€)</label><input id="mPrix" type="number" step="0.01" inputmode="decimal">
+ <div class="row" style="margin-top:14px"><button type="button" class="sec" id="mCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
+ <button type="button" class="sec" id="mReset" style="width:100%;color:var(--rouge)">↺ Valeurs par défaut</button>
+</form></dialog>
+
 <input type="file" id="file" accept=".json,.xml,.xlsx,.xlsm" multiple class="hide">
 <script>
 "use strict";
@@ -168,7 +182,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="24.12-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="25.1-a",KEY="depenses_v1",FKEY="depenses_fold";
 let D=load(),tab="home",per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
@@ -428,13 +442,108 @@ function vSal(){
  ${card("sal-yr","Net après impôt et impôt payé par année",stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.ap,c:"#0284c7"},{v:r.im,c:"#f97316"}],tip:tipHtml(r.y,[tl("Net après impôt",eur2(r.ap),TC.b),tl("Impôt payé",eur2(r.im),TC.o),tl("Net avant impôts",eur2(r.n),TC.g),tl("Moyenne / mois",eur2(r.moy),TC.v),tl("Taux d'impôt",rate(r.im,r.n))])})),{bw:64,lg:'<div class="lg"><span><i style="background:#0284c7"></i>Net après impôt</span><span><i style="background:#f97316"></i>Impôt payé</span></div>'})+`<div class="lst">${yrRows}</div>`)}
  ${card("sal-emp","Répartition par employeur (net avant impôts)",bars(emp,null,(k,v)=>tipHtml(k,[tl("Total net avant impôts",eur2(v),TC.g),tl("Part",(net>0?v/net*100:0).toFixed(1).replace(".",",")+" %"),tl("Versements",ecn[k])])))}
  ${card("sal-hist","Historique des versements · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-sal="${s.i}"><div class="m"><b>${esc(s.employeur)}</b><small>${fdy(s.date)} · ${esc(s.type)}${s.brut>0?` · brut ${eur2(s.brut)}`:""}${s.notes?` · ${esc(s.notes)}`:""}</small></div><div class="r"><span class="pos">${eur2(s.net)}</span><div class="d">avant impôts${s.impot>0?` · impôt ${eur2(s.impot)} · après <span>${eur2(s.net-s.impot)}</span>`:""}</div></div><button class="del" data-delsal="${s.i}">✕</button></div>`).join("")}</div>`)}`}
-const TABS=[["home","🏠","Vue d'ensemble",vHome],["ana","📊","Analyse",vAna],["rec","🔁","Dépenses récurrentes",vRec],["cred","🏦","Suivi Crédit",vCred],["sal","💼","Suivi Salaire",vSal],["data","🔄","Données",vData]];
+/* ---------- Nouveaux onglets : Recherche, Santé, Impôts ---------- */
+const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null};
+const nrm=s=>String(s??"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const fp=v=>(+v.toFixed(1)+"").replace(".",",")+" %";
+const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?"selected":""}>${esc(l)}</option>`;
+
+/* Recherche par catégorie et / ou par dépense (libellé) sur tout l'historique */
+function vSearch(){
+ const all=D.depenses.filter(o=>o.date),used={};all.forEach(o=>{used[o.categorie]=(used[o.categorie]||0)+1});
+ const cats=Object.keys(used).sort((a,b)=>a.localeCompare(b,"fr")),ys=[...new Set(all.map(o=>o.date.slice(0,4)))].sort().reverse(),t=nrm(UI.sq.trim());
+ if(UI.scat!=="all"&&!used[UI.scat])UI.scat="all";
+ if(UI.syr!=="all"&&!ys.includes(UI.syr))UI.syr="all";
+ const R=all.filter(o=>(UI.ssens==="all"||(isRev(o)?"Revenu":"Dépense")===UI.ssens)&&(UI.scat==="all"||o.categorie===UI.scat)&&(UI.syr==="all"||o.date.startsWith(UI.syr))&&(!t||nrm(o.libelle).includes(t))).sort((a,b)=>b.date.localeCompare(a.date));
+ const mixed=UI.ssens==="all",sg=o=>mixed&&!isRev(o)?-o.montant:o.montant,tot=R.reduce((s,o)=>s+sg(o),0),n=R.length;
+ let chart='<div class="empty">Aucun résultat</div>';
+ if(n){const byY=UI.syr==="all"&&ys.length>1,gr=byY?"annee":"mois",G={};
+  R.forEach(o=>{const k=byY?o.date.slice(0,4):o.date.slice(0,7),x=G[k]??={v:0,n:0};x.v+=sg(o);x.n++});
+  const a=UI.syr!=="all"?UI.syr+"-01-01":R[R.length-1].date,b=UI.syr!=="all"?UI.syr+"-12-31":R[0].date,col=UI.ssens==="Revenu"?"#0d9488":"#dc2626";
+  chart=barChart(mkBuckets(a,b,gr).map(k=>{const x=G[k]||{v:0,n:0},[l1,l2]=lbl(gr,k,0);
+   return{l1,l2,v:Math.abs(x.v),c:x.v<0?"#dc2626":col,tip:tipHtml(gr==="annee"?k:cap(mlabel(k)),[tl(mixed?"Solde":"Total",eur2(x.v),TC.b),tl("Opérations",x.n)])}}),{col,bw:BW[byY?"annee":"mois"],vals:true})}
+ const LB={},LN={};R.forEach(o=>{const k=o.libelle||"—";LB[k]=(LB[k]||0)+o.montant;LN[k]=(LN[k]||0)+1});
+ const top=Object.entries(LB).sort((a,b)=>b[1]-a[1]).slice(0,10);
+ const filt=UI.sq||UI.scat!=="all"||UI.syr!=="all"||UI.ssens!=="Dépense";
+ return`<div class="card" style="margin-top:0"><div class="sh">🔎 Rechercher dans l'historique</div>
+ <label>Dépense (libellé)</label><input id="sq" data-u="sq" data-live="1" placeholder="Ex. coiffeur, pharmacie…" list="slibs" value="${esc(UI.sq)}" autocomplete="off">
+ <datalist id="slibs">${[...new Set(all.map(o=>o.libelle))].slice(-500).map(l=>`<option value="${esc(l)}">`).join("")}</datalist>
+ <label>Catégorie</label><select data-u="scat"><option value="all">Toutes les catégories</option>${cats.map(c=>opt(c,c+" ("+used[c]+")",UI.scat)).join("")}</select>
+ <div class="row" style="margin:0"><div style="flex:1;min-width:0"><label>Type</label><select data-u="ssens">${opt("Dépense","Dépenses",UI.ssens)}${opt("Revenu","Revenus",UI.ssens)}${opt("all","Les deux",UI.ssens)}</select></div>
+ <div style="flex:1;min-width:0"><label>Année</label><select data-u="syr">${opt("all","Toutes",UI.syr)}${ys.map(y=>opt(y,y,UI.syr)).join("")}</select></div></div>
+ ${filt?'<button class="sec" id="sReset" style="width:100%;margin-top:10px">↺ Réinitialiser la recherche</button>':""}</div>
+ <div class="kpis"><div class="kpi" style="--c:var(--${mixed?"bleu":UI.ssens==="Revenu"?"vert":"rouge"})"><span>${mixed?"Solde":"Total"}</span><b>${eur2(tot)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Opérations</span><b>${n}</b></div>
+ <div class="kpi" style="--c:var(--orange)"><span>Moyenne</span><b>${n?eur2(tot/n):"—"}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Dernière</span><b style="font-size:1rem">${n?fdy(R[0].date):"—"}</b></div></div>
+ ${card("s-chart","Évolution des résultats",chart)}
+ ${top.length>1?card("s-lib","Détail par libellé",bars(Object.fromEntries(top),null,(k,v)=>tipHtml(k,[tl("Total",eur2(v),TC.b),tl("Opérations",LN[k]),tl("Moyenne",eur2(v/LN[k]),TC.o)]))):""}
+ ${card("s-list","Résultats · "+n,`<div class="lst">${n?R.map(o=>`<div class="op"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span></div>`).join(""):'<div class="empty">Aucun résultat</div>'}</div>`)}`}
+
+/* ---------- Simulateur santé : reste à payer (Sécurité sociale + mutuelle Ipeka) ---------- */
+/* Valeurs par défaut INDICATIVES : à remplacer par les garanties du contrat Ipeka (touche une ligne). */
+const ACTS=[
+ {id:"gen",nom:"Médecin généraliste",br:30,sec:70,pf:2,t:"pct",v:100,prix:30},
+ {id:"spe",nom:"Médecin spécialiste",br:30,sec:70,pf:2,t:"pct",v:100,prix:50},
+ {id:"pha",nom:"Pharmacie (médicaments à 65 %)",br:15,sec:65,pf:0,t:"pct",v:100,prix:15},
+ {id:"kin",nom:"Kinésithérapie (séance)",br:16.13,sec:60,pf:0,t:"pct",v:100,prix:25},
+ {id:"ana",nom:"Analyses de biologie",br:25,sec:60,pf:0,t:"pct",v:100,prix:25},
+ {id:"rad",nom:"Radiologie / imagerie",br:40,sec:70,pf:0,t:"pct",v:100,prix:60},
+ {id:"dsn",nom:"Dentiste : soins (carie, détartrage)",br:28.92,sec:70,pf:0,t:"pct",v:100,prix:40},
+ {id:"dpr",nom:"Dentiste : prothèse (couronne)",br:107.5,sec:70,pf:0,t:"pct",v:100,prix:500},
+ {id:"opt",nom:"Optique (monture + verres)",br:10,sec:60,pf:0,t:"forfait",v:150,prix:250},
+ {id:"hos",nom:"Hospitalisation (par jour)",br:250,sec:80,pf:0,t:"pct",v:100,prix:350},
+ {id:"ost",nom:"Ostéopathe / médecines douces",br:0,sec:0,pf:0,t:"forfait",v:30,prix:60}];
+const getActs=()=>ACTS.map(a=>({...a,...((D.sante&&D.sante.acts&&D.sante.acts[a.id])||{})}));
+function actCalc(a,prix){const sg=Math.min(prix,a.br*a.sec/100),secu=Math.max(0,sg-Math.min(a.pf||0,sg)),
+ m=a.t==="forfait"?Math.min(a.v,prix-sg):Math.min(prix,a.br*a.v/100)-sg,mut=Math.max(0,m);return{secu,mut,reste:Math.max(0,prix-secu-mut)}}
+function vSante(){
+ const AC=getActs(),cur=AC.find(a=>a.id===UI.hAct)||AC[0],prix=UI.hPrix>0?UI.hPrix:cur.prix,qty=UI.hQty>0?UI.hQty:1,c=actCalc(cur,prix),T=prix*qty,S=c.secu*qty,M=c.mut*qty,Rr=c.reste*qty,p=v=>T>0?(v/T*100).toFixed(2):0;
+ const yr=TODAY().slice(0,4),H=OPS().filter(o=>o.categorie==="Santé"&&!isRev(o)&&o.date.startsWith(yr));
+ return`${card("h-sim","Simulateur de reste à payer",`<label>Type de dépense</label><select data-u="hAct">${AC.map(a=>opt(a.id,a.nom,cur.id)).join("")}</select>
+ <div class="row" style="margin:0"><div style="flex:1;min-width:0"><label>Prix facturé (€)</label><input type="number" step="0.01" inputmode="decimal" data-u="hPrix" value="${prix}"></div>
+ <div style="flex:1;min-width:0"><label>Nombre</label><input type="number" step="1" min="1" inputmode="numeric" data-u="hQty" value="${qty}"></div></div>
+ <div class="pg" style="margin-top:14px"><i style="width:${p(S)}%;background:#0284c7"></i><i style="width:${p(M)}%;background:#0d9488"></i><i style="width:${p(Rr)}%;background:#dc2626"></i></div>
+ <div class="pgl"><span><em style="background:#0284c7"></em>Sécu <b>${eur2(S)}</b></span><span><em style="background:#0d9488"></em>Ipeka <b>${eur2(M)}</b></span><span><em style="background:#dc2626"></em>Reste <b>${eur2(Rr)}</b></span></div>
+ <div class="kpis"><div class="kpi" style="--c:var(--violet)"><span>Prix total</span><b>${eur2(T)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Sécurité sociale</span><b>${eur2(S)}</b></div>
+ <div class="kpi" style="--c:var(--vert)"><span>Mutuelle Ipeka</span><b>${eur2(M)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Reste à payer</span><b>${eur2(Rr)}</b></div></div>`,"margin-top:0")}
+ ${card("h-dep","Santé dans mes dépenses · "+yr,`<div class="kpis" style="margin-top:0"><div class="kpi" style="--c:var(--orange)"><span>Dépensé en ${yr}</span><b>${eur(sum(H,"montant"))}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Opérations</span><b>${H.length}</b></div></div>`)}
+ ${card("h-rec","Ma mutuelle Ipeka · touche une ligne pour la modifier",`<div class="d" style="margin:0 0 8px;text-align:center">Garanties indicatives : à remplacer par celles de ton contrat</div><div class="tw"><table class="rc wr"><thead><tr><th>Acte</th><th>Sécu</th><th>Ipeka</th><th>Reste</th></tr></thead><tbody>${AC.map(a=>{const r=actCalc(a,a.prix);return`<tr data-act="${a.id}" style="cursor:pointer"><th>${esc(a.nom)}<div class="d">${eur(a.prix)} · Sécu ${a.sec} % · ${a.t==="forfait"?"forfait "+eur(a.v):a.v+" % BR"}</div></th><td class="pos">${eur2(r.secu)}</td><td class="pos">${eur2(r.mut)}</td><td class="neg">${eur2(r.reste)}</td></tr>`}).join("")}</tbody></table></div>`)}`}
+
+/* ---------- Simulateur d'impôts : taux de prélèvement à la source conseillé ---------- */
+const BAR={"2025":{n:"Barème en vigueur (revenus 2025)",tr:[[11600,0],[29579,.11],[84577,.3],[181917,.41],[Infinity,.45]],dec:[897,1483],pl:1807},
+ "2026":{n:"Barème PLF 2027 (revenus 2026, non voté)",tr:[[11844,0],[30200,.11],[86353,.3],[185737,.41],[Infinity,.45]],dec:[915,1513],pl:1845}},ABAT=[509,14555];
+function irCalc(net,parts,B){const ab=Math.min(Math.max(net*.1,ABAT[0]),ABAT[1]),rev=Math.max(0,net-ab),base=parts>=2?2:1,
+ tp=q=>{let t=0,pv=0;for(const[l,r]of B.tr){if(q>pv)t+=(Math.min(q,l)-pv)*r;pv=l;if(q<=l)break}return t};
+ let brut=tp(rev/parts)*parts;if(parts>base)brut=Math.max(brut,tp(rev/base)*base-(parts-base)*2*B.pl);
+ const dc=Math.max(0,B.dec[base-1]-.4525*brut),ir=Math.max(0,brut-dc),q=rev/parts,tmi=(B.tr.find(x=>q<=x[0])||B.tr[B.tr.length-1])[1];
+ return{rev,ir,tmi,taux:net>0?ir/net:0}}
+function vTax(){
+ const F=D.fisc||{},parts=F.parts>0?F.parts:1,ratio=F.ratio>0?F.ratio:1.03,B=BAR[F.bar]||BAR["2025"],ca=F.ca>0?F.ca:0,S=D.salaires.filter(s=>s.date);
+ const ys=[...new Set(S.map(s=>s.date.slice(0,4)))].sort().reverse(),cy=TODAY().slice(0,4);
+ if(!UI.fy||(!ys.includes(UI.fy)&&UI.fy!==cy))UI.fy=ys.includes(cy)?cy:(ys[0]||cy);
+ const L=S.filter(s=>s.date.startsWith(UI.fy)),cum=sum(L,"net"),imp=sum(L,"impot"),m=L.reduce((x,s)=>Math.max(x,+s.date.slice(5,7)),0),rest=UI.fy===cy?12-m:0,auto=m?cum+cum/m*rest:0,proj=ca>0?ca:auto;
+ const net=proj*ratio,R=irCalc(net,parts,B),restNet=Math.max(0,proj-cum)*ratio,tauxR=restNet>0&&rest>0?Math.min(100,Math.max(0,(R.ir-imp)/restNet*100)):null;
+ const ysel=[...new Set(ys.concat([cy]))].sort().reverse();
+ const sc=[-20,-10,0,10,20].map(k=>{const pn=proj*(1+k/100),r=irCalc(pn*ratio,parts,B);return`<tr${k===0?' class="tot"':""}><th>${k===0?"Prévision":(k>0?"+":"−")+Math.abs(k)+" %"}</th><td>${eur(pn)}</td><td>${eur(r.ir)}</td><td>${fp(r.taux*100)}</td><td>${fp(r.tmi*100)}</td></tr>`}).join("");
+ const pts=Array.from({length:14},(_,i)=>{const rv=proj*(.5+i*.1),r=irCalc(rv*ratio,parts,B);return{l:rv>=1000?Math.round(rv/1000)+"k":Math.round(rv)+"",v:r.ir,tip:tipHtml(eur(rv)+" net / an",[tl("Impôt estimé",eur2(r.ir),TC.o),tl("Taux moyen",fp(r.taux*100),TC.b),tl("Tranche marginale",fp(r.tmi*100))])}});
+ const has=proj>0;
+ return`${card("t-set","Année et hypothèses",`<label>Année des revenus</label><select data-u="fy">${ysel.map(y=>opt(y,y,UI.fy)).join("")}</select>
+ <div class="row" style="margin:0"><div style="flex:1;min-width:0"><label>Nombre de parts</label><input type="number" step="0.5" min="1" inputmode="decimal" data-d="fisc.parts" value="${parts}"></div>
+ <div style="flex:1;min-width:0"><label>Net imposable ÷ net perçu</label><input type="number" step="0.01" inputmode="decimal" data-d="fisc.ratio" value="${ratio}"></div></div>
+ <label>Revenu net annuel prévu (€) — vide = calculé d'après mes salaires</label><input type="number" step="1" inputmode="decimal" data-d="fisc.ca" value="${ca||""}" placeholder="${Math.round(auto)||""}">
+ <label>Barème</label><select data-d="fisc.bar">${Object.keys(BAR).map(k=>opt(k,BAR[k].n,F.bar||"2025")).join("")}</select>
+ <div class="d" style="margin-top:8px">Estimation simplifiée : sans crédits ni réductions d'impôt, ni revenus du capital.</div>`,"margin-top:0")}
+ ${has?`<div class="kpis"><div class="kpi" style="--c:var(--violet)"><span>Taux à mettre (année)</span><b>${fp(R.taux*100)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Taux pour la suite</span><b>${tauxR==null?"—":fp(tauxR)}</b></div>
+ <div class="kpi" style="--c:var(--orange)"><span>Impôt estimé</span><b>${eur(R.ir)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenu net prévu</span><b>${eur(proj)}</b></div>
+ <div class="kpi" style="--c:var(--rouge)"><span>Impôt déjà payé</span><b>${eur(imp)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Reste à payer</span><b>${eur(Math.max(0,R.ir-imp))}</b></div></div>
+ ${card("t-scen","Prévisions selon les revenus",`<div class="tw"><table class="rc"><thead><tr><th>Scénario</th><th>Revenu</th><th>Impôt</th><th>Taux</th><th>TMI</th></tr></thead><tbody>${sc}</tbody></table></div>`)}
+ ${card("t-chart","Impôt estimé selon le revenu annuel",areaChart(pts,{col:"#f97316"}))}`:'<div class="card"><div class="empty">Aucun salaire pour cette année : ajoute-en dans Suivi Salaire ou saisis un revenu net annuel prévu ci-dessus.</div></div>'}`}
+const TABS=[["home","🏠","Vue d'ensemble",vHome],["ana","📊","Analyse",vAna],["rec","🔁","Dépenses récurrentes",vRec],["cred","🏦","Suivi Crédit",vCred],["sal","💼","Suivi Salaire",vSal],["search","🔎","Recherche",vSearch],["sante","🩺","Santé",vSante],["tax","🧾","Impôts",vTax],["data","🔄","Données",vData]];
 /* Limite chaque liste à 10 lignes visibles, le reste défile */
 function fitLists(){document.querySelectorAll(".lst").forEach(l=>{l.style.maxHeight="";if(!l.offsetParent)return;const k=l.children[10];if(k)l.style.maxHeight=(k.offsetTop+1)+"px"})}
 function render(){hideTip();const t=TABS.find(x=>x[0]===tab);$("#app").innerHTML=t[3]();
  const nv=$("#nav"),sl=nv.scrollLeft;nv.innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${x[0]===tab?"on":""}">${x[1]} ${x[2]}</button>`).join("");
  const on=nv.querySelector(".on");if(on)nv.scrollLeft=on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2;else nv.scrollLeft=sl;
- $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations";bind();document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth});fitLists()}
+ $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations";bind();$("#fab").style.display=["search","sante","tax"].includes(tab)?"none":"";document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth});fitLists()}
 function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();scrollTo(0,0)});
  document.querySelectorAll("[data-f]").forEach(h=>h.onclick=()=>{const c=h.parentElement,id=h.dataset.f;c.classList.toggle("fold");FOLD[id]=c.classList.contains("fold")?1:0;saveFold();hideTip();
   if(!FOLD[id]){c.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth})}fitLists()});
@@ -443,6 +552,11 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  const qi=$("#q");if(qi)qi.oninput=e=>{q=e.target.value.toLowerCase();const p=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(p,p)};
  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{if(confirm("Supprimer cette opération ?")){D.depenses.splice(+b.dataset.del,1);save();render()}});
  const g=(id,f)=>{const e=$(id);if(e)e.onclick=f};
+ document.querySelectorAll("[data-u]").forEach(el=>{const k=el.dataset.u,f=()=>{UI[k]=el.type==="number"?(el.value===""?"":parseFloat(el.value)):el.value;if(k==="hAct")UI.hPrix=null};
+  if(el.dataset.live)el.oninput=()=>{f();const p=el.selectionStart;render();const n=document.querySelector('[data-u="'+k+'"]');n.focus();try{n.setSelectionRange(p,p)}catch(e){}};else el.onchange=()=>{f();render()}});
+ document.querySelectorAll("[data-d]").forEach(el=>el.onchange=()=>{const[a,b]=el.dataset.d.split(".");D[a]=D[a]||{};D[a][b]=el.type==="number"?(el.value===""?0:parseFloat(el.value)):el.value;save();render()});
+ document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>openAct(b.dataset.act));
+ g("#sReset",()=>{UI.sq="";UI.scat="all";UI.ssens="Dépense";UI.syr="all";render()});
  const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
  document.querySelectorAll("[data-delsal]").forEach(b=>b.onclick=ev=>{ev.stopPropagation();if(confirm("Supprimer ce salaire ?")){D.salaires.splice(+b.dataset.delsal,1);save();render()}});
  document.querySelectorAll("[data-sal]").forEach(b=>b.onclick=()=>openSal(+b.dataset.sal));
@@ -462,7 +576,7 @@ function fromXml(raw){const doc=new DOMParser().parseFromString(raw,"application
  for(const[k,[par,ch]]of Object.entries(SEC)){p[k]=[...doc.querySelectorAll(`${par} > ${ch}`)].map(el=>{const r={};for(const a of el.attributes){r[a.name]=NUM.has(a.name)?(parseFloat(a.value)||0):a.value}return r})}return p}
 function toCsv(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"';return"﻿Date;Libelle;Categorie;Montant;Sens\n"+D.depenses.map(o=>[o.date,q(o.libelle),q(o.categorie),String(o.montant).replace(".",","),o.sens].join(";")).join("\n")}
 function norm(p){const n=x=>parseFloat(x)||0;
- return{version:1,exporte_le:p.exporte_le||"",
+ return{sante:p.sante,fisc:p.fisc,version:1,exporte_le:p.exporte_le||"",
  depenses:(p.depenses||[]).filter(o=>o.date).map(o=>({date:String(o.date).slice(0,10),libelle:String(o.libelle??""),categorie:String(o.categorie??"Divers"),montant:n(o.montant),sens:o.sens||(REV.includes(o.categorie)?"Revenu":"Dépense")})),
  recurrentes:(p.recurrentes||[]).map(r=>({libelle:String(r.libelle??""),categorie:String(r.categorie??""),montant:n(r.montant),type:r.type||"Charge"})),
  salaires:(p.salaires||[]).map(s=>({date:String(s.date||"").slice(0,10),employeur:String(s.employeur??""),type:String(s.type??""),net:n(s.net),impot:n(s.impot),brut:n(s.brut),notes:String(s.notes??"")})),
@@ -498,6 +612,7 @@ $("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";
   if(low.endsWith(".xlsx")||low.endsWith(".xlsm"))p=fromRows(await readXlsx(await f.arrayBuffer()));
   else{const raw=await f.text();p=norm(low.endsWith(".xml")||raw.trim().startsWith("<")?fromXml(raw):JSON.parse(raw));p.exporte_le=p.exporte_le||""}
   for(const k of Object.keys(SEC))if(p[k]&&(p[k].length||low.match(/\.(json|xml)$/))){if(k==="depenses")p[k]=p[k].filter(o=>o.date);nd[k]=p[k];log.push(`${f.name} → ${p[k].length} ${k}`)}
+  if(p.sante)nd.sante=p.sante;if(p.fisc)nd.fisc=p.fisc;
   if(p.exporte_le)nd.exporte_le=p.exporte_le}catch(err){log.push(`${f.name} : ${err.message}`)}}
  if(!log.some(l=>l.includes("→")))return alert(log.join("\n"));
  if(!confirm("Remplacer les données du téléphone par :\n"+log.join("\n")))return;
@@ -533,6 +648,12 @@ $("#frmS").onsubmit=e=>{const n=parseFloat($("#sNet").value),b=parseFloat($("#sB
  const o={date:$("#sDate").value,employeur:$("#sEmp").value.trim()||"Non renseigné",type:$("#sType").value,net:Math.round(n*100)/100,impot:Math.round(im*100)/100,brut:Math.round(b*100)/100,notes:sIdx>=0?(D.salaires[sIdx].notes||""):""};
  if(sIdx>=0)D.salaires[sIdx]=o;else{D.salaires.push(o);salY="all"}
  save();render()};
+/* Modification d'un acte de santé */
+const dlgM=$("#dlgM");let mId=null;
+function openAct(id){mId=id;const a=getActs().find(x=>x.id===id);$("#mTitle").textContent=a.nom;$("#mBr").value=a.br;$("#mSec").value=a.sec;$("#mPf").value=a.pf||0;$("#mTy").value=a.t;$("#mV").value=a.v;$("#mPrix").value=a.prix;dlgM.showModal()}
+$("#mCancel").onclick=()=>dlgM.close();
+$("#mReset").onclick=()=>{if(D.sante&&D.sante.acts)delete D.sante.acts[mId];save();dlgM.close();render()};
+$("#frmM").onsubmit=()=>{const n=x=>parseFloat($(x).value)||0;D.sante=D.sante||{};D.sante.acts=D.sante.acts||{};D.sante.acts[mId]={br:n("#mBr"),sec:n("#mSec"),pf:n("#mPf"),t:$("#mTy").value,v:n("#mV"),prix:n("#mPrix")};save();render()};
 /* Ajout / modification d'une récurrence */
 const dlgR=$("#dlgR");let rIdx=-1,rType="Charge";
 function setRT(t){rType=t;$("#rC").style.outline=t==="Charge"?"2px solid var(--bleu)":"none";$("#rV").style.outline=t==="Revenu"?"2px solid var(--bleu)":"none";
