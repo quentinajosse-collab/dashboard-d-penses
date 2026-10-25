@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Mes Dépenses, Salaires &amp; Crédit</title>
+<title>Mes Dépenses, Salaires, Primes, Crédit, Santé &amp; Impôts</title>
 <style>
 :root{--bleu:#0284c7;--violet:#7c3aed;--vert:#0d9488;--rouge:#dc2626;--orange:#f97316;--bg:#f4f7fb;--card:#fff;--txt:#0f172a;--mut:#64748b;--line:#e2e8f0}
 @media(prefers-color-scheme:dark){:root{--bg:#0b1220;--card:#131c2e;--txt:#e5edf8;--mut:#94a3b8;--line:#243049}}
@@ -126,6 +126,8 @@ select{border-radius:8px}
 dialog [required]:invalid{border:2px solid var(--rouge)!important}
 dialog [required]:invalid:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,transparent)}
 #iSeg{flex-wrap:wrap}#iSeg button{flex:1 1 calc(50% - 3px)}
+.rb{cursor:pointer;transition:fill-opacity .12s}.rb.act,.rb:hover{fill-opacity:.85}
+g[data-tip]{cursor:pointer}
 .rqn{font-size:.72rem;color:var(--rouge);margin:6px 0 0}
 /* Années du suivi salaire : case gauche (montants) + case droite (évolutions) */
 .yr{display:grid;grid-template-columns:1.25fr 1fr;column-gap:8px;margin:10px 0;font-size:.74rem;line-height:1.35}
@@ -137,7 +139,7 @@ dialog [required]:invalid:focus{outline:2px solid color-mix(in srgb,var(--rouge)
 </style>
 </head>
 <body>
-<header><h1>💶 Mes Dépenses, Salaires &amp; Crédit</h1><small id="sub"></small></header>
+<header><h1>💶 Mes Dépenses, Salaires, Primes, Crédit, Santé &amp; Impôts</h1><small id="sub"></small></header>
 <main><nav id="nav"></nav><div id="app"></div></main>
 <button class="fab" id="fab" aria-label="Ajouter">+</button>
 
@@ -227,7 +229,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="25.8-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="25.9-a",KEY="depenses_v1",FKEY="depenses_fold";
 let D=load(),tab=loadTab(),per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
@@ -354,10 +356,10 @@ function recap(){const L=OPS();if(!L.length)return'<div class="empty">Aucune don
  const Y={},T={nd:0,d:0,nr:0,r:0};
  L.forEach(o=>{const y=o.date.slice(0,4),x=Y[y]??={nd:0,d:0,nr:0,r:0};if(isRev(o)){x.nr++;x.r+=o.montant;T.nr++;T.r+=o.montant}else{x.nd++;x.d+=o.montant;T.nd++;T.d+=o.montant}});
  const row=(l,x,tot)=>{const df=x.r-x.d,tx=x.r>0?df/x.r*100:null,c=df>=0?"pos":"neg";
-  return`<tr${tot?' class="tot"':""}><th>${l}</th><td>${x.nd}</td><td>${eur(x.d)}</td><td>${x.nd?eur(x.d/x.nd):"—"}</td><td>${eur(x.r)}</td><td>${x.nr?eur(x.r/x.nr):"—"}</td><td class="${c}">${df>0?"+":""}${eur(df)}</td><td class="${c}">${tx==null?"—":tx.toFixed(1).replace(".",",")+" %"}</td></tr>`};
+  return`<tr${tot?' class="tot"':""}><th>${l}</th><td>${x.nd}</td><td>${eur(x.d)}</td><td>${eur(x.r)}</td><td class="${c}">${df>0?"+":""}${eur(df)}</td><td class="${c}">${tx==null?"—":tx.toFixed(1).replace(".",",")+" %"}</td></tr>`};
  const ys=Object.keys(Y).sort().reverse();
- return`<div class="tw"><table class="rc"><thead><tr><th rowspan="2">Année</th><th colspan="3" class="g" style="color:var(--rouge)">Dépenses</th><th colspan="2" class="g" style="color:var(--vert)">Revenus</th><th colspan="2" class="g" style="color:var(--bleu)">Bilan</th></tr>
- <tr><th>Nombre</th><th>Montant</th><th>Moyenne</th><th>Montant</th><th>Moyenne</th><th>Différence</th><th>Épargne</th></tr></thead>
+ return`<div class="tw"><table class="rc"><thead><tr><th rowspan="2">Année</th><th colspan="2" class="g" style="color:var(--rouge)">Dépenses</th><th class="g" style="color:var(--vert)">Revenus</th><th colspan="2" class="g" style="color:var(--bleu)">Bilan</th></tr>
+ <tr><th>Nombre</th><th>Montant</th><th>Montant</th><th>Différence</th><th>Épargne</th></tr></thead>
  <tbody>${ys.map(y=>row(y,Y[y])).join("")}${ys.length>1?row("Total",T,1):""}</tbody></table></div>`}
 
 /* ---------- Cartographie mensuelle (années en lignes, mois en colonnes) ---------- */
@@ -401,23 +403,66 @@ function vAna(){
  const{a,b}=perRange(),L=OPS().filter(o=>o.date>=a&&o.date<=b),g=gran;
  const d=L.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0),r=L.filter(isRev).reduce((s,o)=>s+o.montant,0),days=diffD(a,b)+1;
  const cat={},cnt={};L.filter(o=>!isRev(o)).forEach(o=>{cat[o.categorie]=(cat[o.categorie]||0)+o.montant;cnt[o.categorie]=(cnt[o.categorie]||0)+1});
- const nb=mkBuckets(a,b,g).length,avg=nb?d/nb:0,ta=trunc(a,b,g),BK=aggr(L,ta,b,g);
- const main=barChart(BK.map((x,i)=>{const[l1,l2]=lbl(g,x.k,i);return{l1,l2,v:x.d,tip:bTip(g,x)}}),{col:"#dc2626",bw:BW[g],avg,vals:g==="mois"||g==="annee",
-  lg:`<div class="lg"><span><i style="background:#dc2626"></i>Dépenses</span><span><i class="ds"></i>Moyenne : ${eur(avg)} / ${UN[g]}</span></div>`});
+ const ta=trunc(a,b,g),BK=aggr(L,ta,b,g);
+ const main=barChart(BK.map((x,i)=>{const[l1,l2]=lbl(g,x.k,i);return{l1,l2,v:x.d,tip:bTip(g,x)}}),{col:"#dc2626",bw:BW[g],vals:g==="mois"||g==="annee",
+  lg:`<div class="lg"><span><i style="background:#dc2626"></i>Dépenses</span></div>`});
  /* Jour de la semaine : moyenne calculée depuis la toute première dépense */
  const WD=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],WF=["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"],ws=Array(7).fill(0),wn=Array(7).fill(0),wd=Array(7).fill(0);
  const EX=OPS().filter(o=>!isRev(o));
  if(EX.length){const f0=EX.reduce((m,o)=>o.date<m?o.date:m,"9999-99-99"),l0=EX.reduce((m,o)=>o.date>m?o.date:m,"");
   for(let x=f0;x<=l0;x=addD(x,1))wd[dow(x)]++;EX.forEach(o=>{const i=dow(o.date);ws[i]+=o.montant;wn[i]++})}
  const wk=barChart(WD.map((l,i)=>{const m=wd[i]?ws[i]/wd[i]:0;return{l1:l,v:m,tip:tipHtml(WF[i],[tl("Moyenne / jour",eur2(m),TC.v),tl("Total",eur2(ws[i]),TC.r),tl("Opérations",wn[i]),tl("Jours concernés",wd[i])])}}),{col:"#7c3aed",bw:40,vals:1});
+ const MF=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"],mo=Array.from({length:12},()=>({s:0,n:0,c:0}));
+ if(EX.length){const f0=EX.reduce((m,o)=>o.date<m?o.date:m,"9999-99-99"),l0=EX.reduce((m,o)=>o.date>m?o.date:m,"");
+  for(let k=f0.slice(0,7);k<=l0.slice(0,7);k=nextM(k))mo[+k.slice(5,7)-1].c++;EX.forEach(o=>{const x=mo[+o.date.slice(5,7)-1];x.s+=o.montant;x.n++})}
+ const mav=barChart(mo.map((x,i)=>{const m=x.c?x.s/x.c:0;return{l1:MS[i].replace(".",""),v:m,tip:tipHtml(MF[i],[tl("Moyenne / mois",eur2(m),TC.b),tl("Total",eur2(x.s),TC.r),tl("Opérations",x.n),tl("Mois concernés",x.c)])}}),{col:"#0284c7",bw:20});
  return`${card("ana-recap","Récapitulatif par année",recap(),"margin-top:0")}
  ${card("ana-heat","Cartographie mensuelle des dépenses",heat())}
  ${card("ana-wk","Dépenses moyennes par jour de la semaine",wk)}
+ ${card("ana-mo","Dépenses moyennes par mois",mav)}
  <div class="card"><div class="sh">🗓️ Période affichée</div><label>Période</label><select id="pSel">${perSel()}</select>
  <div class="sh" style="margin-top:12px">📐 Regrouper par</div><div class="seg">${G.map(x=>`<button class="${x[0]===g?"":"sec"}" data-g="${x[0]}">${x[1]}</button>`).join("")}</div></div>
  <div class="kpis k3"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Épargne</span><b>${r>0?Math.round((r-d)/r*100):0} %</b></div><div class="kpi" style="--c:var(--orange)"><span>Moy. / jour</span><b>${eur(d/days)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Opérations</span><b>${L.length}</b></div></div>
  ${card("ana-main","Dépenses par "+TT[g],main)}
- ${card("ana-cat","Dépenses par catégorie",bars(cat,null,(k,v)=>tipHtml(k,[tl("Total",eur2(v),TC.r),tl("Part des dépenses",(d>0?v/d*100:0).toFixed(1).replace(".",",")+" %"),tl("Opérations",cnt[k]),tl("Moyenne",eur2(v/cnt[k]),TC.b)])))}`}
+ ${card("ana-cf","Cashflow · "+perLabel(),cashflow(L))}`}
+
+/* ---------- Cashflow : diagramme de flux (revenus → budget → groupes → catégories) ---------- */
+function perLabel(){if(per.startsWith("m:"))return cap(mlabel(per.slice(2)));if(per.startsWith("y:"))return per.slice(2);if(per==="all")return"tout l'historique";return parseInt(per)+" derniers mois"}
+const CFG=[["Logement",["Logement","Énergie & Charges","Assurances"],"#a78bfa"],["Vie quotidienne",["Courses & Nourriture","Restaurants & Sorties","Santé","Vêtements & Shopping","Cadeaux","Divers"],"#38bdf8"],["Transport",["Transport & Carburant","Voiture (entretien/assurance)"],"#34d399"],["Loisirs & Voyages",["Loisirs & Abonnements","Voyages"],"#fbbf24"],["Crédit & Impôts",["Crédit","Impôts","Frais bancaires"],"#f87171"],["Autres",["Retrait espèces","Virement émis"],"#94a3b8"]];
+function cashflow(L){
+ const rv={},ex={},cn={},tot=o=>Object.values(o).reduce((a,b)=>a+b,0);
+ L.forEach(o=>{if(isRev(o))rv[o.categorie]=(rv[o.categorie]||0)+o.montant;else{ex[o.categorie]=(ex[o.categorie]||0)+o.montant;cn[o.categorie]=(cn[o.categorie]||0)+1}});
+ const R=tot(rv),Dp=tot(ex),Bud=Math.max(R,Dp);
+ if(!(Bud>0))return'<div class="empty">Aucune donnée</div>';
+ /* colonnes : 0 revenus, 1 budget, 2 groupes, 3 catégories */
+ const src=Object.entries(rv).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]).map(([n,v])=>({n,v,c:"#818cf8"}));
+ if(Dp>R)src.push({n:"Déficit",v:Dp-R,c:"#fb923c"});
+ const known=new Set(CFG.flatMap(g=>g[1])),grp=[];
+ CFG.forEach(([n,cs,c])=>{const ks=Object.keys(ex).filter(k=>ex[k]>0&&(cs.includes(k)||(n==="Autres"&&!known.has(k))));
+  if(ks.length){const lv=ks.map(k=>({n:k,v:ex[k],c,cnt:cn[k]})).sort((a,b)=>b.v-a.v);grp.push({n,v:lv.reduce((a,l)=>a+l.v,0),c,lv})}});
+ if(R>Dp)grp.push({n:"Épargne",v:R-Dp,c:"#2dd4bf",lv:[]});
+ grp.sort((a,b)=>b.v-a.v);
+ const leaves=grp.flatMap(g=>g.lv.map(l=>({...l,g})));
+ const ctr={n:"Budget",v:Bud,c:"#fdba74"};
+ const W=Math.max(cw(),680),nw=8,x0=4,x3=W-nw-4,sp=(x3-x0)/3,XS=[x0,x0+sp,x0+2*sp,x3],SL=17,GAP=6,sc=240/Bud;
+ const cols=[src,[ctr],grp,leaves];
+ cols.forEach(c=>c.forEach(n=>{n.h=Math.max(n.v*sc,2);n.so=0;n.io=0}));
+ const slot=n=>Math.max(n.h,SL)+GAP,colH=c=>c.reduce((a,n)=>a+slot(n),0),Hm=Math.max(...cols.map(colH));
+ cols.forEach((c,ci)=>{let y=10+(Hm-colH(c))/2;c.forEach(n=>{n.x=XS[ci];n.y=y+(slot(n)-GAP-n.h)/2;n.cy=n.y+n.h/2;n.ci=ci;y+=slot(n)})});
+ const pc=v=>fp(v/Bud*100);
+ let rb="",nd="",lb="";
+ const link=(s,t,v,c)=>{const th=Math.max(v*sc,1),y0=s.y+s.so,y1=t.y+t.io;s.so+=th;t.io+=th;
+  const xa=s.x+nw,xb=t.x,xm=(xa+xb)/2,tip=tipHtml(s.n+" → "+t.n,[tl("Montant",eur2(v),TC.b),tl("Part du budget",pc(v))]);
+  rb+=`<path class="rb" d="M${xa.toFixed(1)} ${y0.toFixed(1)}C${xm.toFixed(1)} ${y0.toFixed(1)} ${xm.toFixed(1)} ${y1.toFixed(1)} ${xb.toFixed(1)} ${y1.toFixed(1)}L${xb.toFixed(1)} ${(y1+th).toFixed(1)}C${xm.toFixed(1)} ${(y1+th).toFixed(1)} ${xm.toFixed(1)} ${(y0+th).toFixed(1)} ${xa.toFixed(1)} ${(y0+th).toFixed(1)}Z" fill="${c}" fill-opacity=".5" data-tip="${esc(tip)}"/>`};
+ src.forEach(n=>link(n,ctr,n.v,n.c));
+ grp.forEach(g=>link(ctr,g,g.v,g.c));
+ grp.forEach(g=>g.lv.forEach(l=>link(g,l,l.v,g.c)));
+ cols.forEach((c,ci)=>c.forEach(n=>{
+  const lines=[tl("Montant",eur2(n.v),TC.b),tl("Part du budget",pc(n.v))];if(n.cnt)lines.push(tl("Opérations",n.cnt),tl("Moyenne",eur2(n.v/n.cnt),TC.o));
+  const tip=esc(tipHtml(n.n,lines)),nm=n.n.length>20?n.n.slice(0,19)+"…":n.n,tx=nm+": "+eur(n.v),w=Math.round(tx.length*5.5+14),px=ci===0?n.x+nw+5:n.x-5-w;
+  nd+=`<rect x="${n.x.toFixed(1)}" y="${n.y.toFixed(1)}" width="${nw}" height="${n.h.toFixed(1)}" rx="3" fill="${n.c}" data-tip="${tip}"/>`;
+  lb+=`<g data-tip="${tip}"><rect x="${px.toFixed(1)}" y="${(n.cy-8.5).toFixed(1)}" width="${w}" height="17" rx="6" fill="#fff" fill-opacity=".93"/><text x="${(px+7).toFixed(1)}" y="${(n.cy+3.5).toFixed(1)}" font-size="10" font-weight="600" fill="#0f172a">${esc(tx)}</text></g>`}));
+ return`<div class="sc"><svg width="${W.toFixed(0)}" height="${(Hm+20).toFixed(0)}">${rb}${nd}${lb}</svg></div><div class="lg"><span>Touche un flux ou une étiquette pour le détail · fais glisser pour voir tout le schéma</span></div>`}
 
 /* ---------- Dépenses récurrentes (modifiables sur le téléphone) ---------- */
 function vRec(){const R=D.recurrentes,c=R.filter(r=>r.type==="Charge").reduce((a,r)=>a+r.montant,0),v=R.filter(r=>r.type==="Revenu").reduce((a,r)=>a+r.montant,0);
