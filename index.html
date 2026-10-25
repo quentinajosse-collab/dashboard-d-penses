@@ -123,8 +123,9 @@ select{border-radius:8px}
 .pgl{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.72rem;color:var(--mut);margin-top:8px}
 .pgl b{color:var(--txt)}
 .pgl em{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;font-style:normal}
-dialog [required]{border:2px solid var(--rouge)!important}
-dialog [required]:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,transparent)}
+dialog [required]:invalid{border:2px solid var(--rouge)!important}
+dialog [required]:invalid:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,transparent)}
+#iSeg{flex-wrap:wrap}#iSeg button{flex:1 1 calc(50% - 3px)}
 .rqn{font-size:.72rem;color:var(--rouge);margin:6px 0 0}
 /* Années du suivi salaire : case gauche (montants) + case droite (évolutions) */
 .yr{display:grid;grid-template-columns:1.25fr 1fr;column-gap:8px;margin:10px 0;font-size:.74rem;line-height:1.35}
@@ -206,12 +207,12 @@ dialog [required]:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,tra
 </form></dialog>
 
 <dialog id="dlgI"><form method="dialog" id="frmI">
- <h3 id="iTitle" style="margin:0 0 4px">Nouvel intéressement / participation / abondement</h3>
- <div class="seg" style="margin-top:8px"><button type="button" class="sec" id="iI">Intéressement</button><button type="button" class="sec" id="iP">Participation</button><button type="button" class="sec" id="iA">Abondement</button></div>
+ <h3 id="iTitle" style="margin:0 0 4px">Nouvel intéressement / participation / abondement / PPV</h3>
+ <div class="seg" id="iSeg" style="margin-top:8px"><button type="button" class="sec" id="iI">Intéressement</button><button type="button" class="sec" id="iP">Participation</button><button type="button" class="sec" id="iA">Abondement</button><button type="button" class="sec" id="iV">PPV</button></div>
  <label>Date de versement</label><input id="iDate" type="date" required>
  <label>Montant brut (€)</label><input id="iBrut" type="number" step="0.01" min="0" inputmode="decimal">
  <label>Montant net (€)</label><input id="iNet" type="number" step="0.01" min="0.01" inputmode="decimal" required>
- <label>Destination</label><select id="iDest"><option>Perçu (versé sur le compte)</option><option>Placé (PEE / PERCO)</option></select>
+ <div id="iDestW"><label>Destination</label><select id="iDest"><option>Perçu (versé sur le compte)</option><option>Placé (PEE / PERCO)</option></select></div><div class="d hide" id="iAbN" style="margin-top:6px">L'abondement est versé directement sur ton plan d'épargne : il est toujours placé (PEE / PERCO).</div>
  <label>Entreprise</label><select id="iEmp"></select>
  <div class="rqn">Les champs encadrés en rouge sont obligatoires.</div>
  <div class="row" style="margin-top:14px"><button type="button" class="sec" id="iCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
@@ -226,7 +227,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="25.5-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="25.6-a",KEY="depenses_v1",FKEY="depenses_fold";
 let D=load(),tab="home",per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
@@ -515,18 +516,16 @@ function vSal(){
 /* ---------- Intéressement / Participation ---------- */
 function vInt(){
  const all=(D.interessement||[]).map((s,i)=>({...s,i})).filter(s=>s.date).sort((a,b)=>a.date.localeCompare(b.date));
- const add=`<button id="bAddInt" style="width:100%;margin-bottom:12px">➕ Ajouter un intéressement / une participation</button>`;
- if(!all.length)return`${add}<div class="card"><div class="empty">Aucun intéressement ni participation enregistré pour le moment.</div></div>`;
+  if(!all.length)return`<div class="card" style="margin-top:0"><div class="empty">Aucun versement enregistré pour le moment.<br>Appuie sur + pour en ajouter un.</div></div>`;
  const ys=[...new Set(all.map(s=>s.date.slice(0,4)))].sort().reverse();
  if(UI.iy!=="all"&&!ys.includes(UI.iy))UI.iy="all";
- const T=(l,t)=>sum(l.filter(s=>s.type===t),"montant"),L=UI.iy==="all"?all:all.filter(s=>s.date.startsWith(UI.iy)),tI=T(L,"Intéressement"),tP=T(L,"Participation"),tA=T(L,"Abondement"),plc=sum(L.filter(s=>/^Placé/.test(s.dest||"")),"montant");
- const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),i=T(l,"Intéressement"),p=T(l,"Participation"),a=T(l,"Abondement");return{y,i,p,a,t:i+p+a,c:l.length}});
- const avg=YR.reduce((s,r)=>s+r.t,0)/YR.length;
- const chart=stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.i,c:"#7c3aed"},{v:r.p,c:"#0d9488"},{v:r.a,c:"#f97316"}],tip:tipHtml(r.y,[tl("Intéressement",eur2(r.i),TC.v),tl("Participation",eur2(r.p),TC.g),tl("Abondement",eur2(r.a),TC.o),tl("Total",eur2(r.t),TC.b),tl("Versements",r.c)])})),{bw:64,avg,lg:'<div class="lg"><span><i style="background:#7c3aed"></i>Intéressement</span><span><i style="background:#0d9488"></i>Participation</span><span><i style="background:#f97316"></i>Abondement</span><span><i class="ds"></i>Moyenne : '+eur(avg)+' / an</span></div>'});
- const yrRows=YR.slice().reverse().map(r=>`<div class="op"><div class="m"><b>${r.y}</b><small>${r.c} versement${r.c>1?"s":""}</small><div class="d">Intéressement ${eur(r.i)} · Participation ${eur(r.p)} · Abondement ${eur(r.a)}</div></div><div class="r"><b>${eur(r.t)}</b></div></div>`).join("");
- return`${add}<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Année</label><select data-u="iy"><option value="all">Toutes les années</option>${ys.map(y=>opt(y,y,UI.iy)).join("")}</select></div>
- <div class="kpis"><div class="kpi wide" style="--c:var(--bleu)"><span>Total intéressement + participation + abondement</span><b>${eur(tI+tP+tA)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Intéressement</span><b>${eur(tI)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Participation</span><b>${eur(tP)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Abondement</span><b>${eur(tA)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Placé (PEE / PERCO)</span><b>${eur(plc)}</b></div><div class="kpi wide" style="--c:var(--rouge)"><span>Perçu</span><b>${eur(tI+tP+tA-plc)}</b></div></div>
- ${card("int-yr","Intéressement / participation / abondement par année",chart+`<div class="lst">${yrRows}</div>`)}
+ const T=(l,t)=>sum(l.filter(s=>s.type===t),"montant"),L=UI.iy==="all"?all:all.filter(s=>s.date.startsWith(UI.iy)),tI=T(L,"Intéressement"),tP=T(L,"Participation"),tA=T(L,"Abondement"),tV=T(L,"PPV");
+ const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),i=T(l,"Intéressement"),p=T(l,"Participation"),a=T(l,"Abondement"),v=T(l,"PPV");return{y,i,p,a,v,t:i+p+a+v,c:l.length}});
+  const chart=stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.i,c:"#7c3aed"},{v:r.p,c:"#0d9488"},{v:r.a,c:"#f97316"},{v:r.v,c:"#0284c7"}],tip:tipHtml(r.y,[tl("Intéressement",eur2(r.i),TC.v),tl("Participation",eur2(r.p),TC.g),tl("Abondement",eur2(r.a),TC.o),tl("PPV",eur2(r.v),TC.b),tl("Total",eur2(r.t),TC.b),tl("Versements",r.c)])})),{bw:64,lg:'<div class="lg"><span><i style="background:#7c3aed"></i>Intéressement</span><span><i style="background:#0d9488"></i>Participation</span><span><i style="background:#f97316"></i>Abondement</span><span><i style="background:#0284c7"></i>PPV</span></div>'});
+ const yrRows=YR.slice().reverse().map(r=>`<div class="op"><div class="m"><b>${r.y}</b><small>${r.c} versement${r.c>1?"s":""}</small><div class="d">Intéressement ${eur(r.i)} · Participation ${eur(r.p)} · Abondement ${eur(r.a)} · PPV ${eur(r.v)}</div></div><div class="r"><b>${eur(r.t)}</b></div></div>`).join("");
+ return`<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Année</label><select data-u="iy"><option value="all">Toutes les années</option>${ys.map(y=>opt(y,y,UI.iy)).join("")}</select></div>
+ <div class="kpis"><div class="kpi wide" style="--c:var(--bleu)"><span>Total versé</span><b>${eur(tI+tP+tA+tV)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Intéressement</span><b>${eur(tI)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Participation</span><b>${eur(tP)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Abondement</span><b>${eur(tA)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>PPV</span><b>${eur(tV)}</b></div></div>
+ ${card("int-yr","Intéressement / participation / abondement / PPV par année",chart+`<div class="lst">${yrRows}</div>`)}
  ${card("int-hist","Historique · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-int="${s.i}"><div class="m"><b>${esc(s.type)}</b><small>${fdy(s.date)}${s.employeur?" · "+esc(s.employeur):""} · ${esc(s.dest||"")}${s.brut>0?" · brut "+eur2(s.brut):""}</small></div><span class="pos am">${eur2(s.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Nouveaux onglets : Recherche, Santé, Impôts ---------- */
 const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all"};
@@ -752,21 +751,21 @@ $("#frmS").onsubmit=e=>{const n=parseFloat($("#sNet").value),b=parseFloat($("#sB
  save();render()};
 /* Ajout / modification intéressement ou participation */
 const dlgI=$("#dlgI");let iIdx=-1,iType="Intéressement";
-function setIT(t){iType=t;$("#iI").style.outline=t==="Intéressement"?"2px solid var(--bleu)":"none";$("#iP").style.outline=t==="Participation"?"2px solid var(--bleu)":"none";$("#iA").style.outline=t==="Abondement"?"2px solid var(--bleu)":"none"}
+function setIT(t){iType=t;$("#iI").style.outline=t==="Intéressement"?"2px solid var(--bleu)":"none";$("#iP").style.outline=t==="Participation"?"2px solid var(--bleu)":"none";$("#iA").style.outline=t==="Abondement"?"2px solid var(--bleu)":"none";$("#iV").style.outline=t==="PPV"?"2px solid var(--bleu)":"none";$("#iDestW").classList.toggle("hide",t==="Abondement");$("#iAbN").classList.toggle("hide",t!=="Abondement")}
 function openInt(i=-1){iIdx=i;$("#frmI").reset();const s=i>=0?D.interessement[i]:null;
  /* Liste déroulante : employeurs déjà présents dans l'onglet Salaire (le plus récent en premier) */
  const emps=[...new Set(D.salaires.filter(x=>x.employeur).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(x=>x.employeur))];
  if(s&&s.employeur&&!emps.includes(s.employeur))emps.push(s.employeur);
  $("#iEmp").innerHTML='<option value="">— Choisir —</option>'+emps.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join("");
  if(!s&&emps.length)$("#iEmp").value=emps[0];
- $("#iTitle").textContent=s?"Modifier la ligne":"Nouvel intéressement / participation / abondement";setIT(s?s.type:"Intéressement");$("#iDate").value=s&&s.date?s.date:TODAY();
+ $("#iTitle").textContent=s?"Modifier la ligne":"Nouvel intéressement / participation / abondement / PPV";setIT(s?s.type:"Intéressement");$("#iDate").value=s&&s.date?s.date:TODAY();
  if(s){$("#iNet").value=s.montant||"";$("#iBrut").value=s.brut||"";$("#iDest").value=s.dest||$("#iDest").options[0].value;$("#iEmp").value=s.employeur||""}
  else{const l=(D.interessement||[]).slice(-1)[0];if(l&&emps.includes(l.employeur))$("#iEmp").value=l.employeur}
  $("#iDel").classList.toggle("hide",!s);dlgI.showModal()}
-$("#iI").onclick=()=>setIT("Intéressement");$("#iP").onclick=()=>setIT("Participation");$("#iA").onclick=()=>setIT("Abondement");$("#iCancel").onclick=()=>dlgI.close();
+$("#iI").onclick=()=>setIT("Intéressement");$("#iP").onclick=()=>setIT("Participation");$("#iA").onclick=()=>setIT("Abondement");$("#iV").onclick=()=>setIT("PPV");$("#iCancel").onclick=()=>dlgI.close();
 $("#iDel").onclick=()=>{if(iIdx>=0&&confirm("Supprimer cette ligne ?")){D.interessement.splice(iIdx,1);save();dlgI.close();render()}};
 $("#frmI").onsubmit=e=>{const m=parseFloat($("#iNet").value);if(!(m>0)){e.preventDefault();return}
- const o={date:$("#iDate").value,type:iType,montant:Math.round(m*100)/100,brut:Math.round((parseFloat($("#iBrut").value)||0)*100)/100,dest:$("#iDest").value,employeur:$("#iEmp").value.trim()};
+ const o={date:$("#iDate").value,type:iType,montant:Math.round(m*100)/100,brut:Math.round((parseFloat($("#iBrut").value)||0)*100)/100,dest:iType==="Abondement"?$("#iDest").options[1].value:$("#iDest").value,employeur:$("#iEmp").value.trim()};
  D.interessement=D.interessement||[];if(iIdx>=0)D.interessement[iIdx]=o;else D.interessement.push(o);UI.iy="all";save();render()};
 /* Ajout / modification d'un prêt */
 const dlgP=$("#dlgP");let pIdx=-1;
