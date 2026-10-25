@@ -126,16 +126,21 @@ select{border-radius:8px}
 dialog [required]:invalid{border:2px solid var(--rouge)!important}
 dialog [required]:invalid:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,transparent)}
 #iSeg{flex-wrap:wrap}#iSeg button{flex:1 1 calc(50% - 3px)}
+.mu{color:var(--mut)}
+.yc{border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden;background:var(--card)}
+.yc h4{margin:0;padding:9px 12px;display:flex;justify-content:space-between;align-items:baseline;background:color-mix(in srgb,var(--mut) 9%,var(--card));font-size:1.05rem;font-weight:800}
+.yc h4 small{font-size:.7rem;color:var(--mut);font-weight:600}
+.yg{display:grid;grid-template-columns:1.15fr 1fr 1fr;font-size:.8rem;align-items:center}
+.yg>div{padding:7px 10px;border-top:1px solid var(--line)}
+.yg>.hd{border-top:0;font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:700;padding-bottom:2px}
+.yg .rl{font-weight:700;font-size:.76rem}
+.yg .v{text-align:right;font-variant-numeric:tabular-nums}
+.yg .v b{display:block;font-size:.88rem}
+.yg .v .e{font-size:.68rem;margin-top:1px}
 .rb{cursor:pointer;transition:fill-opacity .12s}.rb.act,.rb:hover{fill-opacity:.85}
 g[data-tip]{cursor:pointer}
 .rqn{font-size:.72rem;color:var(--rouge);margin:6px 0 0}
-/* Années du suivi salaire : case gauche (montants) + case droite (évolutions) */
-.yr{display:grid;grid-template-columns:1.25fr 1fr;column-gap:8px;margin:10px 0;font-size:.74rem;line-height:1.35}
-.yr>div{padding:5px 9px;background:color-mix(in srgb,var(--mut) 8%,var(--card));border-left:1px solid var(--line);border-right:1px solid var(--line);display:flex;align-items:center;flex-wrap:wrap;gap:0 4px}
-.yr>div:nth-child(-n+2){border-top:1px solid var(--line);border-radius:10px 10px 0 0}
-.yr>div:nth-last-child(-n+2){border-bottom:1px solid var(--line);border-radius:0 0 10px 10px}
-.yr .yy{font-size:.95rem;font-weight:800}
-.yr .mu{color:var(--mut)}
+
 </style>
 </head>
 <body>
@@ -148,9 +153,16 @@ g[data-tip]{cursor:pointer}
  <div class="seg" style="margin-top:8px"><button type="button" class="sec" data-sens="Dépense" id="sD">Dépense</button><button type="button" class="sec" data-sens="Revenu" id="sR">Revenu</button></div>
  <label>Libellé</label><input id="fLib" required autocomplete="off" list="libs">
  <datalist id="libs"></datalist>
- <label>Montant (€)</label><input id="fMt" type="number" step="0.01" min="0.01" inputmode="decimal" required>
+ <div id="fMtW"><label>Montant (€)</label><input id="fMt" type="number" step="0.01" min="0.01" inputmode="decimal" required></div>
  <label>Catégorie</label><select id="fCat"></select>
  <label>Date</label><input id="fDate" type="date" required>
+ <div id="fSalW" class="hide">
+  <label>Employeur</label><input id="fEmp" autocomplete="off" list="emps2"><datalist id="emps2"></datalist>
+  <label>Salaire brut (€)</label><input id="fBrut" type="number" step="0.01" min="0" inputmode="decimal">
+  <label>Salaire net avant impôts (€)</label><input id="fNet" type="number" step="0.01" min="0.01" inputmode="decimal">
+  <label>Impôt payé (€)</label><input id="fImp" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
+  <div class="d" id="fApr" style="margin-top:6px"></div>
+ </div>
  <div class="rqn">Les champs encadrés en rouge sont obligatoires.</div>
  <div class="row" style="margin-top:14px"><button type="button" class="sec" id="fCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
  <button type="button" class="sec hide" id="fDel" style="width:100%;color:var(--rouge)">🗑 Supprimer cette opération</button>
@@ -229,7 +241,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="25.9-b",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="26.0-a",KEY="depenses_v1",FKEY="depenses_fold";
 const TKEY="depenses_tab",TIDS=["home","ana","rec","cred","sal","tax","int","sante","data"];
 let D=load(),tab=loadTab(),per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
@@ -491,7 +503,7 @@ function crYear(P,yi){
  const kp=(l,v,c)=>`<div class="kpi" style="--c:var(--${c})"><span>${l}</span><b>${eur(v)}</b></div>`;
  return card("cr-yr","Remboursement "+y+" : capital / intérêts",sel+stackChart(it,{bw:26,lg})+'<div class="kpis">'+kp("Capital "+y,tc,"vert")+kp("Intérêts "+y,ti,"orange")+kp("Assurance "+y,ta,"violet")+kp("Total payé "+y,tc+ti+ta,"bleu")+'</div>')}
 function vCred(){
- if(!D.prets.length)return'<button id="bAddPret" style="width:100%;margin-bottom:12px">➕ Ajouter un prêt</button><div class="card"><div class="empty">Aucun prêt</div></div>';
+ if(!D.prets.length)return'<div class="card" style="margin-top:0"><div class="empty">Aucun prêt<br>Appuie sur + pour en ajouter un.</div></div>';
  const T=TODAY();
  const P=D.prets.map(p=>{const s=sched(p),st=p.date_debut||T,el=Math.max(0,Math.min(s.n,(+T.slice(0,4)-+st.slice(0,4))*12+(+T.slice(5,7)-+st.slice(5,7))));
   return{p,m:s.m,n:s.n,S:s.S,el,as:p.assurance||0,k0:s.S[0].d.slice(0,7),map:new Map(s.S.map(r=>[r.d.slice(0,7),r]))}});
@@ -513,7 +525,6 @@ function vCred(){
   <div class="kpis"><div class="kpi" style="--c:var(--bleu)"><span>Mensualité (hors ass.)</span><b>${eur2(mens)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Avec assurance</span><b>${eur2(mens+ass)}</b></div>
   <div class="kpi" style="--c:var(--rouge)"><span>Capital restant dû</span><b>${eur(crd)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Intérêts restants</span><b>${eur(ti-pI)}</b></div>
   <div class="kpi" style="--c:var(--vert)"><span>Fin du prêt</span><b style="font-size:1rem">${esc(mlabel(end))}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Mois restants</span><b>${left}</b></div></div>`,"margin-top:0")}
- <button id="bAddPret" style="width:100%;margin-bottom:12px">➕ Ajouter un prêt</button>
  ${loans}
  ${crYear(P,yi)}
  ${card("cr-crd","Évolution du capital restant dû",areaChart(crdI,{col:"#0284c7"}))}`}
@@ -544,27 +555,22 @@ function vSal(){
  const all=D.salaires.map((s,i)=>({...s,i})).filter(s=>s.date).sort((a,b)=>a.date.localeCompare(b.date));
  const ys=[...new Set(all.map(s=>s.date.slice(0,4)))].sort().reverse(),ysel=[...new Set(ys.concat([cy]))].sort().reverse();
  if(salY!=="all"&&!ysel.includes(salY))salY=cy;
- const add=`<button id="bAddSal" style="width:100%;margin-bottom:12px">➕ Ajouter un salaire perçu</button>`;
- if(!all.length)return`${add}<div class="card"><div class="empty">Aucun salaire enregistré pour le moment.<br>Ajoutes-en un ou importe <b>mes_salaires.xlsx</b> depuis l'onglet Données.</div></div>`;
+ if(!all.length)return`<div class="card" style="margin-top:0"><div class="empty">Aucun salaire enregistré pour le moment.<br>Saisis un revenu de catégorie « Salaire » depuis la Vue d'ensemble (bouton +), ou importe <b>mes_salaires.xlsx</b> depuis l'onglet Données.</div></div>`;
  const L=salY==="all"?all:all.filter(s=>s.date.startsWith(salY)),net=sum(L,"net"),imp=sum(L,"impot"),brut=sum(L,"brut");
- const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),mo=new Set(l.map(s=>s.date.slice(0,7))).size||1,n=sum(l,"net"),im=sum(l,"impot"),b=sum(l,"brut");return{y,n,im,ap:n-im,b,c:l.length,moy:n/mo,moyAp:(n-im)/mo,moyB:b/mo}});
+ const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),mo=new Set(l.map(s=>s.date.slice(0,7))).size||1,n=sum(l,"net"),im=sum(l,"impot"),b=sum(l,"brut");return{y,n,im,ap:n-im,b,c:l.length,moy:n/mo,moyAp:(n-im)/mo,moyB:b/mo,moyIm:im/mo}});
  YR.forEach((r,i)=>{const p=YR[i-1];r.d=p?{b:pct(r.b,p.b),mb:pct(r.moyB,p.moyB),n:pct(r.n,p.n),mn:pct(r.moy,p.moy),a:pct(r.ap,p.ap),ma:pct(r.moyAp,p.moyAp)}:null});
  const emp={},ecn={};L.forEach(s=>{const k=s.employeur||"Non renseigné";emp[k]=(emp[k]||0)+s.net;ecn[k]=(ecn[k]||0)+1});
- /* Cumul d'impôt payé sur l'année (année choisie, sinon la plus récente) */
- const yr=salY==="all"?(ys[0]||cy):salY,LY=all.filter(s=>s.date.startsWith(yr));let cum=0,cn=0;
- const impY=sum(LY,"impot");
- const cumI=LY.map(s=>{cum+=s.impot||0;cn+=s.net;return{l:mshort(s.date),v:cum,tip:tipHtml(fdy(s.date),[tl("Impôt de ce versement",eur2(s.impot||0),TC.r),tl("Cumul d'impôt "+yr,eur2(cum),TC.o),tl("Net avant impôts cumulé",eur2(cn),TC.g),tl("Taux cumulé",rate(cum,cn))])}});
- /* Une année = case gauche (montants et moyennes mensuelles) + case droite (évolutions vs année précédente) */
- const dd=(t,m)=>`${dsp(t)||"—"} <span class="mu">total</span> ${dsp(m)||"—"} <span class="mu">moy.</span>`;
- const lf=(l,v,m,show)=>`<div>${l} <b>${show?eur(v):"—"}</b>${show?` <span class="mu">(${eur(m)} moy.)</span>`:""}</div>`;
- const yrRows=YR.slice().reverse().map(r=>`<div class="yr"><div><span class="yy">${r.y}</span></div><div class="mu">Évolution vs ${+r.y-1}</div>${lf("Brut",r.b,r.moyB,r.b>0)}<div>${r.d?dd(r.d.b,r.d.mb):"—"}</div>${lf("Net avant impôts",r.n,r.moy,true)}<div>${r.d?dd(r.d.n,r.d.mn):"—"}</div>${lf("Net après impôts",r.ap,r.moyAp,true)}<div>${r.d?dd(r.d.a,r.d.ma):"—"}</div></div>`).join("");
- return`${add}<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Année</label><select id="sSel"><option value="all">Toutes les années</option>${ysel.map(y=>`<option value="${y}" ${y===salY?"selected":""}>${y}</option>`).join("")}</select></div>
+ const yr=salY==="all"?(ys[0]||cy):salY;
+ /* Une carte par année : tableau Total / Moyenne par mois, avec l'évolution sous chaque montant */
+ const evl=p=>p==null?"":`<div class="e">${dsp(p)}</div>`;
+ const yrow=(lab,t,m,et,em,show)=>show?`<div class="rl">${lab}</div><div class="v"><b>${eur(t)}</b>${evl(et)}</div><div class="v"><b>${eur(m)}</b>${evl(em)}</div>`:"";
+ const yrRows='<div class="d" style="margin-top:12px">Sous chaque montant : évolution par rapport à l\'année précédente</div>'+YR.slice().reverse().map(r=>{const d=r.d||{};return`<div class="yc"><h4><span>${r.y}</span><small>${r.c} versement${r.c>1?"s":""}</small></h4><div class="yg"><div class="hd"></div><div class="hd" style="text-align:right">Total</div><div class="hd" style="text-align:right">Moy. / mois</div>${yrow("Brut",r.b,r.moyB,d.b,d.mb,r.b>0)}${yrow("Net avant impôts",r.n,r.moy,d.n,d.mn,true)}${yrow("Net après impôts",r.ap,r.moyAp,d.a,d.ma,true)}<div class="rl">Impôt payé</div><div class="v"><b>${eur(r.im)}</b><div class="e mu">${rate(r.im,r.n)} du net</div></div><div class="v"><b>${eur(r.moyIm)}</b></div></div></div>`}).join("");
+ return`<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Année</label><select id="sSel"><option value="all">Toutes les années</option>${ysel.map(y=>`<option value="${y}" ${y===salY?"selected":""}>${y}</option>`).join("")}</select></div>
  <div class="kpis k3"><div class="kpi" style="--c:var(--violet)"><span>Salaire brut</span><b>${brut>0?eur(brut):"—"}</b></div><div class="kpi" style="--c:var(--vert)"><span>Net avant impôts</span><b>${eur(net)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Net après impôts</span><b>${eur(net-imp)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Impôt payé (cumul)</span><b>${eur(imp)}</b></div>
  <div class="kpi" style="--c:var(--rouge)"><span>Taux d'impôt moyen</span><b>${rate(imp,net)}</b></div>
  <div class="kpi" style="--c:var(--bleu)"><span>Versements</span><b>${L.length}</b></div></div>
  ${taxCard(yr)}
- ${card("sal-imp","Cumul d'impôt payé en "+yr,impY>0?areaChart(cumI,{col:"#f97316"}):'<div class="empty">Aucun impôt saisi pour cette année</div>')}
- ${card("sal-yr","Net après impôt et impôt payé par année",stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.ap,c:"#0284c7"},{v:r.im,c:"#f97316"}],tip:tipHtml(r.y,[tl("Net après impôts",eur2(r.ap),TC.b),tl("Moyenne par mois",eur2(r.moyAp),TC.v),tl("Impôt sur le revenu",eur2(r.im),TC.o),tl("Taux d'impôt",rate(r.im,r.n))])})),{bw:64,lg:'<div class="lg"><span><i style="background:#0284c7"></i>Net après impôt</span><span><i style="background:#f97316"></i>Impôt payé</span></div>'})+`<div class="lst">${yrRows}</div>`)}
+ ${card("sal-yr","Net après impôt et impôt payé par année",stackChart(YR.map(r=>({l1:r.y,segs:[{v:r.ap,c:"#0284c7"},{v:r.im,c:"#f97316"}],tip:tipHtml(r.y,[tl("Net après impôts",eur2(r.ap),TC.b),tl("Moyenne par mois",eur2(r.moyAp),TC.v),tl("Impôt sur le revenu",eur2(r.im),TC.o),tl("Taux d'impôt",rate(r.im,r.n))])})),{bw:64,lg:'<div class="lg"><span><i style="background:#0284c7"></i>Net après impôt</span><span><i style="background:#f97316"></i>Impôt payé</span></div>'})+yrRows)}
  ${card("sal-emp","Répartition par employeur (net avant impôts)",bars(emp,null,(k,v)=>tipHtml(k,[tl("Total net avant impôts",eur2(v),TC.g),tl("Part",(net>0?v/net*100:0).toFixed(1).replace(".",",")+" %"),tl("Versements",ecn[k])])))}
  ${card("sal-hist","Historique des versements · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-sal="${s.i}"><div class="m"><b>${esc(s.employeur)}</b><small>${fdy(s.date)} · ${esc(s.type)}${s.brut>0?` · brut ${eur2(s.brut)}`:""}${s.notes?` · ${esc(s.notes)}`:""}</small></div><div class="r"><span class="pos">${eur2(s.net)}</span><div class="d">avant impôts${s.impot>0?` · impôt ${eur2(s.impot)} · après <span>${eur2(s.net-s.impot)}</span>`:""}</div></div><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Intéressement / Participation ---------- */
@@ -657,7 +663,7 @@ function fitLists(){
 function render(){hideTip();const t=TABS.find(x=>x[0]===tab);$("#app").innerHTML=t[3]();
  const nv=$("#nav"),sl=nv.scrollLeft;nv.innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${x[0]===tab?"on":""}">${x[1]} ${x[2]}</button>`).join("");
  const on=nv.querySelector(".on");if(on)nv.scrollLeft=on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2;else nv.scrollLeft=sl;
- $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations";bind();$("#fab").style.display=["sante","tax"].includes(tab)?"none":"";document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth});fitLists()}
+ $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations";bind();$("#fab").style.display=["sante","tax","sal"].includes(tab)?"none":"";document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth});fitLists()}
 function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{if(b.dataset.t==="sal"&&tab!=="sal")salY=TODAY().slice(0,4);tab=b.dataset.t;saveTab();render();scrollTo(0,0)});
  document.querySelectorAll("[data-f]").forEach(h=>h.onclick=()=>{const c=h.parentElement,id=h.dataset.f;c.classList.toggle("fold");FOLD[id]=c.classList.contains("fold")?1:0;saveFold();hideTip();
   if(!FOLD[id]){c.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth})}fitLists()});
@@ -694,10 +700,10 @@ function fromXml(raw){const doc=new DOMParser().parseFromString(raw,"application
 function toCsv(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"';return"\uFEFFDate;Libelle;Categorie;Montant;Sens\n"+D.depenses.map(o=>[o.date,q(o.libelle),q(o.categorie),String(o.montant).replace(".",","),o.sens].join(";")).join("\n")}
 function norm(p){const n=x=>parseFloat(x)||0;
  return{sante:p.sante,fisc:p.fisc,version:1,exporte_le:p.exporte_le||"",
- depenses:(p.depenses||[]).filter(o=>o.date).map(o=>({date:String(o.date).slice(0,10),libelle:String(o.libelle??""),categorie:String(o.categorie??"Divers"),montant:n(o.montant),sens:o.sens||(REV.includes(o.categorie)?"Revenu":"Dépense")})),
+ depenses:(p.depenses||[]).filter(o=>o.date).map(o=>({date:String(o.date).slice(0,10),libelle:String(o.libelle??""),categorie:String(o.categorie??"Divers"),montant:n(o.montant),sens:o.sens||(REV.includes(o.categorie)?"Revenu":"Dépense"),...(o.lien?{lien:String(o.lien)}:{})})),
  recurrentes:(p.recurrentes||[]).map(r=>({libelle:String(r.libelle??""),categorie:String(r.categorie??""),montant:n(r.montant),type:r.type||"Charge"})),
  interessement:p.interessement?p.interessement.map(s=>({date:String(s.date||"").slice(0,10),type:String(s.type||"Intéressement"),montant:n(s.montant),brut:n(s.brut),dest:String(s.dest||""),employeur:String(s.employeur||"")})):undefined,
- salaires:(p.salaires||[]).map(s=>({date:String(s.date||"").slice(0,10),employeur:String(s.employeur??""),type:String(s.type??""),net:n(s.net),impot:n(s.impot),brut:n(s.brut),notes:String(s.notes??"")})),
+ salaires:(p.salaires||[]).map(s=>({date:String(s.date||"").slice(0,10),employeur:String(s.employeur??""),type:String(s.type??""),net:n(s.net),impot:n(s.impot),brut:n(s.brut),notes:String(s.notes??""),...(s.lien?{lien:String(s.lien)}:{})})),
  prets:(p.prets||[]).map(r=>({nom:String(r.nom??""),capital:n(r.capital),taux:n(r.taux),duree:n(r.duree)||240,date_debut:String(r.date_debut||"").slice(0,10),assurance:n(r.assurance),premiere_reelle:n(r.premiere_reelle)}))}}
 /* ---- Lecture Excel (.xlsx) hors connexion : zip + XML, sans bibliothèque ---- */
 async function unzip(buf){const dv=new DataView(buf),u8=new Uint8Array(buf);let e=u8.length-22;while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;
@@ -736,24 +742,50 @@ $("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";
  if(!confirm("Remplacer les données du téléphone par :\n"+log.join("\n")))return;
  D=nd;save();render();alert("Import terminé :\n"+log.join("\n"))};
 
-/* Ajout d'une opération */
-const dlg=$("#dlg");let oIdx=-1;
+/* Ajout d'une opération (un revenu « Salaire » crée aussi la ligne dans Suivi Salaire, reliée par « lien ») */
+const dlg=$("#dlg");let oIdx=-1,oAllow=true,oLink=null,salOn=false;
 function catsFor(s){return CATS.filter(c=>REV.includes(c)===(s==="Revenu"))}
-function setSens(s){sens=s;$("#sD").style.outline=s==="Dépense"?"2px solid var(--bleu)":"none";$("#sR").style.outline=s==="Revenu"?"2px solid var(--bleu)":"none";$("#fCat").innerHTML=catsFor(s).map(c=>`<option>${esc(c)}</option>`).join("")}
-$("#fab").onclick=()=>{if(tab==="sal")return openSal(-1);if(tab==="int")return openInt(-1);if(tab==="cred")return openPret(-1);if(tab==="rec")return openRec(-1);oIdx=-1;$("#opTitle").textContent="Nouvelle opération";$("#fDel").classList.add("hide");$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");
+function lastEmp(){const l=D.salaires.filter(x=>x.date&&x.employeur).sort((a,b)=>a.date.localeCompare(b.date)).pop();return l?l.employeur:""}
+function updA(){const n=parseFloat($("#fNet").value)||0,i=parseFloat($("#fImp").value)||0;$("#fApr").innerHTML=n>0?`Montant enregistré dans les opérations (net après impôts) : <span>${eur2(n-i)}</span>`:""}
+function syncSal(){const on=!!(oAllow&&sens==="Revenu"&&$("#fCat").value==="Salaire");
+ $("#fSalW").classList.toggle("hide",!on);$("#fMtW").classList.toggle("hide",on);
+ $("#fMt").required=!on;["#fEmp","#fBrut","#fNet"].forEach(x=>{$(x).required=on});
+ if(on&&!salOn){if(oLink==null)$("#fLib").value="Salaire";if(!$("#fEmp").value)$("#fEmp").value=lastEmp();
+  $("#emps2").innerHTML=[...new Set(D.salaires.map(x=>x.employeur).filter(Boolean))].map(l=>`<option value="${esc(l)}">`).join("")}
+ salOn=on;updA()}
+function setSens(s){sens=s;$("#sD").style.outline=s==="Dépense"?"2px solid var(--bleu)":"none";$("#sR").style.outline=s==="Revenu"?"2px solid var(--bleu)":"none";$("#fCat").innerHTML=catsFor(s).map(c=>`<option>${esc(c)}</option>`).join("");syncSal()}
+$("#fab").onclick=()=>{if(tab==="int")return openInt(-1);if(tab==="cred")return openPret(-1);if(tab==="rec")return openRec(-1);oIdx=-1;oAllow=true;oLink=null;salOn=false;$("#opTitle").textContent="Nouvelle opération";$("#fDel").classList.add("hide");$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");
  $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(o=>o.libelle))].map(l=>`<option value="${esc(l)}">`).join("");dlg.showModal()};
 $("#sD").onclick=()=>setSens("Dépense");$("#sR").onclick=()=>setSens("Revenu");$("#fCancel").onclick=()=>dlg.close();
-$("#fLib").onchange=e=>{const m=[...D.depenses].reverse().find(o=>o.libelle.toLowerCase()===e.target.value.toLowerCase());if(m&&oIdx<0){setSens(isRev(m)?"Revenu":"Dépense");$("#fCat").value=m.categorie}};
-$("#frm").onsubmit=e=>{const m=parseFloat($("#fMt").value);if(!(m>0)){e.preventDefault();return}
- const o={date:$("#fDate").value,libelle:$("#fLib").value.trim(),categorie:$("#fCat").value,montant:Math.round(m*100)/100,sens};
- if(oIdx>=0)D.depenses[oIdx]={...D.depenses[oIdx],...o};else D.depenses.push(o);
- save();per="m:"+$("#fDate").value.slice(0,7);render()};
-function openOp(i){oIdx=i;const o=D.depenses[i];$("#frm").reset();$("#opTitle").textContent="Modifier l'opération";setSens(isRev(o)?"Revenu":"Dépense");
+$("#fCat").onchange=syncSal;$("#fNet").oninput=updA;$("#fImp").oninput=updA;
+$("#fLib").onchange=e=>{const m=[...D.depenses].reverse().find(o=>o.libelle.toLowerCase()===e.target.value.toLowerCase());if(m&&oIdx<0){setSens(isRev(m)?"Revenu":"Dépense");$("#fCat").value=m.categorie;syncSal()}};
+$("#frm").onsubmit=e=>{const on=!!(oAllow&&sens==="Revenu"&&$("#fCat").value==="Salaire"),r2=x=>Math.round(x*100)/100,date=$("#fDate").value;
+ if(on){const n=parseFloat($("#fNet").value),im=parseFloat($("#fImp").value)||0,b=parseFloat($("#fBrut").value)||0;
+  if(!(n>0)||!(n-im>0)){e.preventDefault();alert("Le salaire net doit être supérieur à l'impôt payé.");return}
+  const lien=oLink||("s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),
+   op={date,libelle:$("#fLib").value.trim()||"Salaire",categorie:"Salaire",montant:r2(n-im),sens:"Revenu",lien},
+   sal={date,employeur:$("#fEmp").value.trim()||"Non renseigné",net:r2(n),impot:r2(im),brut:r2(b),lien},
+   si=D.salaires.findIndex(x=>x.lien===lien);
+  if(oIdx>=0)D.depenses[oIdx]={...D.depenses[oIdx],...op};else D.depenses.push(op);
+  if(si>=0)D.salaires[si]={...D.salaires[si],...sal};else D.salaires.push({type:"Salaire",notes:"",...sal});
+  salY=date.slice(0,4)}
+ else{const m=parseFloat($("#fMt").value);if(!(m>0)){e.preventDefault();return}
+  const o={date,libelle:$("#fLib").value.trim(),categorie:$("#fCat").value,montant:r2(m),sens};
+  if(oIdx>=0){const old=D.depenses[oIdx];
+   if(old.lien){if(!confirm("Cette opération n'est plus un salaire : supprimer aussi le salaire lié dans Suivi Salaire ?")){e.preventDefault();return}
+    D.salaires=D.salaires.filter(x=>x.lien!==old.lien);const nw={...old,...o};delete nw.lien;D.depenses[oIdx]=nw}
+   else D.depenses[oIdx]={...old,...o}}
+  else D.depenses.push(o)}
+ save();per="m:"+date.slice(0,7);render()};
+function openOp(i){oIdx=i;const o=D.depenses[i];oAllow=!!o.lien;oLink=o.lien||null;salOn=false;$("#frm").reset();$("#opTitle").textContent="Modifier l'opération";setSens(isRev(o)?"Revenu":"Dépense");
  $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(x=>x.libelle))].map(l=>`<option value="${esc(l)}">`).join("");
  $("#fLib").value=o.libelle;$("#fMt").value=o.montant;
  if(o.categorie&&![...$("#fCat").options].some(x=>x.value===o.categorie))$("#fCat").insertAdjacentHTML("beforeend",`<option>${esc(o.categorie)}</option>`);
- $("#fCat").value=o.categorie;$("#fDate").value=o.date;$("#fDel").classList.remove("hide");dlg.showModal()}
-$("#fDel").onclick=()=>{if(oIdx>=0&&confirm("Supprimer cette opération ?")){D.depenses.splice(oIdx,1);save();dlg.close();render()}};
+ $("#fCat").value=o.categorie;$("#fDate").value=o.date;
+ if(o.lien){const s=D.salaires.find(x=>x.lien===o.lien);$("#fEmp").value=s?s.employeur:"";$("#fBrut").value=s&&s.brut!=null?s.brut:"";$("#fNet").value=s?s.net:o.montant;$("#fImp").value=s&&s.impot?s.impot:""}
+ $("#fDel").classList.remove("hide");syncSal();dlg.showModal()}
+$("#fDel").onclick=()=>{if(oIdx<0)return;const o=D.depenses[oIdx];
+ if(confirm(o.lien?"Supprimer cette opération et le salaire lié dans Suivi Salaire ?":"Supprimer cette opération ?")){if(o.lien)D.salaires=D.salaires.filter(x=>x.lien!==o.lien);D.depenses.splice(oIdx,1);save();dlg.close();render()}};
 /* Ajout / modification d'un salaire */
 const dlgS=$("#dlgS");let sIdx=-1;
 function updApr(){const n=parseFloat($("#sNet").value)||0,i=parseFloat($("#sImp").value)||0;$("#sApr").innerHTML=n>0?`Salaire net après impôts : <span>${eur2(n-i)}</span>`:""}
@@ -768,10 +800,12 @@ function openSal(i=-1){sIdx=i;$("#frmS").reset();const s=i>=0?D.salaires[i]:null
  $("#emps").innerHTML=[...new Set(D.salaires.map(x=>x.employeur).filter(Boolean))].map(l=>`<option value="${esc(l)}">`).join("");
  $("#sDel").classList.toggle("hide",!s);dlgS.showModal();updApr()}
 $("#sCancel").onclick=()=>dlgS.close();
-$("#sDel").onclick=()=>{if(sIdx>=0&&confirm("Supprimer ce salaire ?")){D.salaires.splice(sIdx,1);save();dlgS.close();render()}};
+$("#sDel").onclick=()=>{if(sIdx<0)return;const s=D.salaires[sIdx];if(confirm(s.lien?"Supprimer ce salaire et l'opération liée dans la Vue d'ensemble ?":"Supprimer ce salaire ?")){if(s.lien)D.depenses=D.depenses.filter(x=>x.lien!==s.lien);D.salaires.splice(sIdx,1);save();dlgS.close();render()}};
 $("#frmS").onsubmit=e=>{const n=parseFloat($("#sNet").value),b=parseFloat($("#sBrut").value)||0,im=parseFloat($("#sImp").value)||0;if(!(n>0)){e.preventDefault();return}
  const o={date:$("#sDate").value,employeur:$("#sEmp").value.trim()||"Non renseigné",type:$("#sType").value,net:Math.round(n*100)/100,impot:Math.round(im*100)/100,brut:Math.round(b*100)/100,notes:sIdx>=0?(D.salaires[sIdx].notes||""):""};
- if(sIdx>=0)D.salaires[sIdx]=o;else{D.salaires.push(o);salY=o.date.slice(0,4)}
+ if(sIdx>=0){const no={...D.salaires[sIdx],...o};D.salaires[sIdx]=no;
+  if(no.lien){const oi=D.depenses.findIndex(x=>x.lien===no.lien);if(oi>=0)D.depenses[oi]={...D.depenses[oi],date:no.date,montant:Math.round((no.net-no.impot)*100)/100}}}
+ else{D.salaires.push(o);salY=o.date.slice(0,4)}
  save();render()};
 /* Ajout / modification intéressement ou participation */
 const dlgI=$("#dlgI");let iIdx=-1,iType="Intéressement";
