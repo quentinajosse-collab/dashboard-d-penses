@@ -229,12 +229,12 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="25.9-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="25.9-b",KEY="depenses_v1",FKEY="depenses_fold";
+const TKEY="depenses_tab",TIDS=["home","ana","rec","cred","sal","tax","int","sante","data"];
 let D=load(),tab=loadTab(),per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){alert("Stockage impossible")}}
-const TKEY="depenses_tab",TIDS=["home","ana","rec","cred","sal","tax","int","sante","data"];
 function loadTab(){try{const t=localStorage.getItem(TKEY);return TIDS.includes(t)?t:"home"}catch(e){return"home"}}
 function saveTab(){try{localStorage.setItem(TKEY,tab)}catch(e){}}
 function saveFold(){try{localStorage.setItem(FKEY,JSON.stringify(FOLD))}catch(e){}}
@@ -442,7 +442,7 @@ function cashflow(L){
   if(ks.length){const lv=ks.map(k=>({n:k,v:ex[k],c,cnt:cn[k]})).sort((a,b)=>b.v-a.v);grp.push({n,v:lv.reduce((a,l)=>a+l.v,0),c,lv})}});
  if(R>Dp)grp.push({n:"Épargne",v:R-Dp,c:"#2dd4bf",lv:[]});
  grp.sort((a,b)=>b.v-a.v);
- const leaves=grp.flatMap(g=>g.lv.map(l=>({...l,g})));
+ const leaves=grp.flatMap(g=>g.lv);
  const ctr={n:"Budget",v:Bud,c:"#fdba74"};
  const W=Math.max(cw(),680),nw=8,x0=4,x3=W-nw-4,sp=(x3-x0)/3,XS=[x0,x0+sp,x0+2*sp,x3],SL=17,GAP=6,sc=240/Bud;
  const cols=[src,[ctr],grp,leaves];
