@@ -127,6 +127,8 @@ dialog [required]:invalid{border:2px solid var(--rouge)!important}
 dialog [required]:invalid:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,transparent)}
 #iSeg{flex-wrap:wrap}#iSeg button{flex:1 1 calc(50% - 3px)}
 .mu{color:var(--mut)}
+.lst .op.sel{background:color-mix(in srgb,var(--bleu) 16%,transparent)}
+.ck{font-size:1.15rem}
 .yc{border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden;background:var(--card)}
 .yc h4{margin:0;padding:9px 12px;display:flex;justify-content:space-between;align-items:baseline;background:color-mix(in srgb,var(--mut) 9%,var(--card));font-size:1.05rem;font-weight:800}
 .yc h4 small{font-size:.7rem;color:var(--mut);font-weight:600}
@@ -202,12 +204,12 @@ g[data-tip]{cursor:pointer}
 
 <dialog id="dlgM"><form method="dialog" id="frmM">
  <h3 id="mTitle" style="margin:0 0 4px">Acte</h3>
+ <div class="d" id="mG" style="margin:0 0 6px"></div>
  <label>Base de remboursement Sécu (€)</label><input id="mBr" type="number" step="0.01" inputmode="decimal">
  <label>Taux Sécurité sociale (%)</label><input id="mSec" type="number" step="1" inputmode="decimal">
  <label>Participation forfaitaire / franchise (€)</label><input id="mPf" type="number" step="0.01" inputmode="decimal">
- <label>Garantie Ipeka</label><select id="mTy"><option value="pct">% de la base (Sécu comprise)</option><option value="forfait">Forfait en € en plus de la Sécu</option></select>
- <label>Valeur de la garantie (% ou €)</label><input id="mV" type="number" step="0.01" inputmode="decimal">
  <label>Prix habituel (€)</label><input id="mPrix" type="number" step="0.01" inputmode="decimal">
+ <div class="d" style="margin-top:8px">Les garanties Ipeca (socle 0739/461 + sur-complémentaire 0739/462) sont celles de tes notices ; tu peux ajuster ici la base Sécu, le taux Sécu, la franchise et le prix habituel.</div>
  <div class="row" style="margin-top:14px"><button type="button" class="sec" id="mCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
  <button type="button" class="sec" id="mReset" style="width:100%;color:var(--rouge)">↺ Valeurs par défaut</button>
 </form></dialog>
@@ -240,6 +242,13 @@ g[data-tip]{cursor:pointer}
  <button type="button" class="sec hide" id="iDel" style="width:100%;color:var(--rouge)">🗑 Supprimer</button>
 </form></dialog>
 
+<dialog id="dlgG"><form method="dialog" id="frmG">
+ <h3 style="margin:0 0 4px">Enregistrer le groupe</h3>
+ <div class="d" id="gInfo" style="margin:0 0 6px"></div>
+ <label>Nom du groupe (ex. Voyage Italie)</label><input id="gNom" required autocomplete="off" list="gLst"><datalist id="gLst"></datalist>
+ <div class="rqn">Choisis un nom existant pour ajouter à un groupe déjà créé.</div>
+ <div class="row" style="margin-top:14px"><button type="button" class="sec" id="gCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
+</form></dialog>
 <input type="file" id="file" accept=".json,.xml,.xlsx,.xlsm" multiple class="hide">
 <script>
 "use strict";
@@ -248,7 +257,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="26.1-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="26.3-a",KEY="depenses_v1",FKEY="depenses_fold";
 const TKEY="depenses_tab",TIDS=["home","ana","rec","cred","sal","tax","int","sante","data"];
 let D=load(),tab=loadTab(),per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
@@ -398,23 +407,40 @@ function months(){return[...new Set(OPS().map(o=>o.date.slice(0,7)).concat([TODA
 function fixPer(){if(per.startsWith("m:")&&!months().includes(per.slice(2)))per="m:"+TODAY().slice(0,7)}
 
 /* ---------- Onglet 1 : période + revenus/dépenses/solde + liste ---------- */
+function selSum(){let d=0,r=0,n=0;UI.sel.forEach(i=>{const o=D.depenses[i];if(!o)return;n++;if(isRev(o))r+=o.montant;else d+=o.montant});return{n,d,r}}
+function selHtml(){const s=selSum();return`<div class="kpis k3" style="margin-top:0"><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur2(s.d)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur2(s.r)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Coût net</span><b>${eur2(s.d-s.r)}</b></div></div>`}
+function refSel(){const b=$("#selBox"),t=$("#selT");if(b)b.innerHTML=selHtml();if(t)t.textContent=selSum().n}
 function vHome(){
  fixPer();
  const{a,b}=perRange(),used={};D.depenses.forEach(o=>{if(o.date)used[o.categorie]=1});
- const cats=Object.keys(used).sort((x,y)=>x.localeCompare(y,"fr"));
+ const cats=Object.keys(used).sort((x,y)=>x.localeCompare(y,"fr")),
+ grs=[...new Set(D.depenses.map(o=>o.groupe).filter(Boolean))].sort((x,y)=>x.localeCompare(y,"fr"));
  if(UI.scat!=="all"&&!used[UI.scat])UI.scat="all";
- const t=nrm(q.trim()),filt=!!t||UI.scat!=="all"||UI.hs!=="all";
- const L=D.depenses.map((o,i)=>({...o,i})).filter(o=>/^\d{4}-\d{2}-\d{2}$/.test(o.date||"")&&o.date>=a&&o.date<=b&&(UI.hs==="all"||(isRev(o)?"Revenu":"Dépense")===UI.hs)&&(UI.scat==="all"||o.categorie===UI.scat)&&(!t||nrm(o.libelle).includes(t))).sort((x,y)=>y.date.localeCompare(x.date));
+ if(UI.hg!=="all"&&!grs.includes(UI.hg))UI.hg="all";
+ const t=nrm(q.trim()),filt=!!t||UI.scat!=="all"||UI.hs!=="all"||UI.hg!=="all",sm=UI.selMode;
+ /* Avec un groupe choisi, la période est ignorée : le groupe est affiché en entier */
+ const L=D.depenses.map((o,i)=>({...o,i})).filter(o=>/^\d{4}-\d{2}-\d{2}$/.test(o.date||"")&&(UI.hg!=="all"?o.groupe===UI.hg:(o.date>=a&&o.date<=b))&&(UI.hs==="all"||(isRev(o)?"Revenu":"Dépense")===UI.hs)&&(UI.scat==="all"||o.categorie===UI.scat)&&(!t||nrm(o.libelle).includes(t))).sort((x,y)=>y.date.localeCompare(x.date));
  const r=L.filter(isRev).reduce((s,o)=>s+o.montant,0),d=L.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0);
+ const GS=grs.map(g=>{const l=D.depenses.filter(o=>o.groupe===g),dd=l.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0),rr=l.filter(isRev).reduce((s,o)=>s+o.montant,0);return{g,n:l.length,d:dd,r:rr}});
+ const selCard=sm?`<div class="card" style="margin-top:0"><div class="sh">🧳 Regrouper · <span id="selT">${selSum().n}</span> sélectionnée(s)</div><div class="d" style="margin:0 0 8px">Touche les opérations une à une : le coût total se met à jour. Les filtres et la recherche restent utilisables.</div><div id="selBox">${selHtml()}</div>
+  <div class="row" style="margin-top:10px"><button class="sec" id="selAll" style="flex:1">Tout sélectionner (liste)</button><button class="sec" id="selNone" style="flex:1">Tout désélectionner</button></div>
+  <div class="row"><button id="selSave" style="flex:2">Enregistrer le groupe…</button><button class="sec" id="selUn" style="flex:1">Retirer du groupe</button></div>
+  <button class="sec" id="selEnd" style="width:100%">Terminer</button></div>`:"";
  return`<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée et recherche</div>
  <label>Période</label><select id="pSel">${perSel()}</select>
  <label>Rechercher (libellé)</label><input id="q" placeholder="🔍 Ex. coiffeur, pharmacie…" value="${esc(q)}" autocomplete="off">
  <div class="row" style="margin:0"><div style="flex:1;min-width:0"><label>Catégorie</label><select data-u="scat"><option value="all">Toutes</option>${cats.map(c=>opt(c,c,UI.scat)).join("")}</select></div>
  <div style="flex:1;min-width:0"><label>Type</label><select data-u="hs">${opt("all","Les deux",UI.hs)}${opt("Dépense","Dépenses",UI.hs)}${opt("Revenu","Revenus",UI.hs)}</select></div></div>
- ${filt?'<button class="sec" id="sReset" style="width:100%;margin-top:10px">↺ Réinitialiser la recherche</button>':""}</div>
+ ${grs.length?`<label>Groupe</label><select data-u="hg"><option value="all">Tous (selon la période)</option>${grs.map(g=>opt(g,"🧳 "+g,UI.hg)).join("")}</select>`:""}
+ ${filt?'<button class="sec" id="sReset" style="width:100%;margin-top:10px">↺ Réinitialiser la recherche</button>':""}
+ ${UI.hg!=="all"?'<div class="row" style="margin:10px 0 0"><button class="sec" id="gRen" style="flex:1">✎ Renommer le groupe</button><button class="sec" id="gDel" style="flex:1;color:var(--rouge)">Dissoudre</button></div>':""}</div>
  <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div>
- <div class="kpi wide" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div></div>
- ${card("home-list","Opérations sur la période · "+L.length,`<div class="lst">${L.length?L.map(o=>`<div class="op" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`,"margin-top:0")}`}
+ <div class="kpi wide" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div>
+ ${UI.hg!=="all"?`<div class="kpi wide" style="--c:var(--orange)"><span>Coût net du groupe « ${esc(UI.hg)} »</span><b>${eur(d-r)}</b></div>`:""}</div>
+ ${sm?"":'<button id="bGrp" class="sec" style="width:100%;margin-bottom:12px">🧳 Regrouper des opérations (voyage, projet…)</button>'}
+ ${selCard}
+ ${card("home-list",(UI.hg!=="all"?"Groupe « "+esc(UI.hg)+" » · ":"Opérations sur la période · ")+L.length,`<div class="lst">${L.length?L.map(o=>`<div class="op${sm&&UI.sel.has(o.i)?" sel":""}" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}${o.groupe?" · 🧳 "+esc(o.groupe):""}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span class="ck" style="color:var(--mut)">${sm?(UI.sel.has(o.i)?"☑":"☐"):"✎"}</span></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`,"margin-top:0")}
+ ${GS.length&&!sm?card("home-grp","🧳 Mes groupes · touche pour afficher",`<div class="lst">${GS.map(x=>`<div class="op" data-grp="${esc(x.g)}"><div class="m"><b>${esc(x.g)}</b><small>${x.n} opération${x.n>1?"s":""} · dépenses ${eur(x.d)}${x.r>0?" · revenus "+eur(x.r):""}</small></div><span class="am neg">${eur2(x.d-x.r)}</span></div>`).join("")}</div>`):""}`}
 
 /* ---------- Onglet 2 : analyse ---------- */
 function vAna(){
@@ -428,11 +454,11 @@ function vAna(){
  /* Jour de la semaine : moyenne calculée depuis la toute première dépense */
  const WD=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],WF=["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"],ws=Array(7).fill(0),wn=Array(7).fill(0),wd=Array(7).fill(0);
  const EX=OPS().filter(o=>!isRev(o));
- if(EX.length){const f0=EX.reduce((m,o)=>o.date<m?o.date:m,"9999-99-99"),l0=EX.reduce((m,o)=>o.date>m?o.date:m,"");
+ if(EX.length){const f0=EX.reduce((m,o)=>o.date<m?o.date:m,"9999-99-99"),l0x=EX.reduce((m,o)=>o.date>m?o.date:m,""),l0=l0x>TODAY()?l0x:TODAY();
   for(let x=f0;x<=l0;x=addD(x,1))wd[dow(x)]++;EX.forEach(o=>{const i=dow(o.date);ws[i]+=o.montant;wn[i]++})}
  const wk=barChart(WD.map((l,i)=>{const m=wd[i]?ws[i]/wd[i]:0;return{l1:l,v:m,tip:tipHtml(WF[i],[tl("Moyenne / jour",eur2(m),TC.v),tl("Total",eur2(ws[i]),TC.r),tl("Opérations",wn[i]),tl("Jours concernés",wd[i])])}}),{col:"#7c3aed",bw:40,vals:1});
  const MF=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"],mo=Array.from({length:12},()=>({s:0,n:0,c:0}));
- if(EX.length){const f0=EX.reduce((m,o)=>o.date<m?o.date:m,"9999-99-99"),l0=EX.reduce((m,o)=>o.date>m?o.date:m,"");
+ if(EX.length){const f0=EX.reduce((m,o)=>o.date<m?o.date:m,"9999-99-99"),l0x=EX.reduce((m,o)=>o.date>m?o.date:m,""),l0=l0x>TODAY()?l0x:TODAY();
   for(let k=f0.slice(0,7);k<=l0.slice(0,7);k=nextM(k))mo[+k.slice(5,7)-1].c++;EX.forEach(o=>{const x=mo[+o.date.slice(5,7)-1];x.s+=o.montant;x.n++})}
  const mav=barChart(mo.map((x,i)=>{const m=x.c?x.s/x.c:0;return{l1:MS[i].replace(".",""),v:m,tip:tipHtml(MF[i],[tl("Moyenne / mois",eur2(m),TC.b),tl("Total",eur2(x.s),TC.r),tl("Opérations",x.n),tl("Mois concernés",x.c)])}}),{col:"#0284c7",bw:20});
  return`${card("ana-recap","Récapitulatif par année",recap(),"margin-top:0")}
@@ -526,7 +552,7 @@ function vCred(){
   crdI.push({l:mshort(d),v,tip:tipHtml(cap(mlabel(k)),[tl("Capital restant dû",eur2(v),TC.b),tl("Capital déjà remboursé",eur2(cap0-v),TC.g)])})}
  const rem=x=>Math.max(0,x.p.capital-sum(x.S.slice(0,x.el),"cp")),pp=(a,b)=>b>0?Math.max(0,Math.min(100,a/b*100)):0,pr=v=>v.toFixed(0)+" %";
  const lrow=(nm,sub,c0,rb,tot,ix)=>{const rs=Math.max(0,c0-rb);return`<tr${tot?' class="tot"':` data-pret="${ix}" style="cursor:pointer"`}><th>${nm}${ix!=null?' <span style="color:var(--mut)">✎</span>':""}${sub?`<div class="d">${sub}</div>`:""}<div class="pg mini"><i style="width:${pp(rb,c0).toFixed(1)}%;background:#0d9488"></i></div></th><td>${eur(c0)}</td><td class="pos">${eur(rb)}</td><td class="neg">${eur(rs)}</td><td>${pr(pp(rb,c0))}</td></tr>`};
- const loans=card("cr-loans","Mes prêts · touche une ligne pour la modifier",`<div class="tw"><table class="rc"><thead><tr><th>Prêt</th><th>Prêt total</th><th>Remboursé</th><th>Restant dû</th><th>Avancé</th></tr></thead><tbody>${P.map((x,ix)=>lrow(esc(x.p.nom),eur2(x.m+x.as)+" / mois · fin "+esc(mlabel(x.S[x.n-1].d.slice(0,7))),x.p.capital,x.p.capital-rem(x),0,ix)).join("")}${P.length>1?lrow("Total","",cap0,pc,1):""}</tbody></table></div>`);
+ const loans=card("cr-loans","Mes prêts · touche une ligne pour la modifier",`<div class="tw"><table class="rc"><thead><tr><th>Prêt</th><th>Prêt total</th><th>Remboursé</th><th>Restant dû</th><th>Avancé</th></tr></thead><tbody>${P.map((x,ix)=>lrow(esc(x.p.nom),eur2(x.m)+" / mois hors ass. · fin "+esc(mlabel(x.S[x.n-1].d.slice(0,7))),x.p.capital,x.p.capital-rem(x),0,ix)).join("")}${P.length>1?lrow("Total","",cap0,pc,1):""}</tbody></table></div>`);
  return`${card("cr-sum",P.length>1?"Mes crédits":esc(P[0].p.nom),`<div class="pg"><i style="width:${w1.toFixed(2)}%;background:#0d9488"></i><i style="width:${w2.toFixed(2)}%;background:#f97316"></i></div>
   <div class="pgl"><span><em style="background:#0d9488"></em>Capital remboursé <b>${eur(pc)}</b></span><span><em style="background:#f97316"></em>Intérêts payés <b>${eur(pI)}</b></span><span><em style="background:var(--line)"></em>Reste à payer <b>${eur(crd+(ti-pI))}</b></span></div>
   <div class="kpis"><div class="kpi" style="--c:var(--bleu)"><span>Mensualité (hors ass.)</span><b>${eur2(mens)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Avec assurance</span><b>${eur2(mens+ass)}</b></div>
@@ -552,19 +578,26 @@ const dsp=p=>p==null?"":`<span class="${p>=0?"pos":"neg"}">${p>=0?"+":""}${p.toF
 const rate=(i,n)=>n>0?(i/n*100).toFixed(1).replace(".",",")+" %":"—";
 /* Suivi salaire : l'année en cours est sélectionnée par défaut */
 let salY=TODAY().slice(0,4);
-/* Impôt estimé d'une année : salaires déjà reçus + mois restants × moyenne mensuelle des années précédentes
-   (à défaut d'année précédente : moyenne mensuelle de l'année en cours). Ne dépend que des salaires. */
+/* Impôt estimé d'une année : salaires déjà reçus (net avant impôts) + mois restants × moyenne mensuelle des années précédentes
+   (à défaut d'année précédente : moyenne mensuelle de l'année en cours). Ne dépend que des salaires.
+   Cohérence : reste à payer = impôt estimé − impôt déjà payé ; net après impôts du reste = net avant impôts du reste − reste à payer ;
+   taux moyen = impôt estimé ÷ revenu net avant impôts (même base que le « Taux d'impôt moyen » de l'onglet Salaire). */
 function taxEst(y){
  const F=D.fisc||{},parts=F.parts>0?F.parts:1,ratio=F.ratio>0?F.ratio:1.03,B=BAR[F.bar]||BAR["2025"],cy=TODAY().slice(0,4),
  S=D.salaires.filter(s=>s.date&&s.date.startsWith(y)),recu=sum(S,"net"),imp=sum(S,"impot"),mr=new Set(S.map(s=>s.date.slice(0,7))).size,prev={};
  D.salaires.forEach(s=>{if(s.date&&s.date.slice(0,4)<y){const a=s.date.slice(0,4),p=prev[a]??={n:0,m:new Set()};p.n+=s.net;p.m.add(s.date.slice(5,7))}});
  const pm=Object.values(prev).map(p=>p.n/p.m.size),moy=pm.length?pm.reduce((a,b)=>a+b,0)/pm.length:(mr?recu/mr:0),
- rest=y===cy?Math.max(0,12-mr):0,pr=rest*moy,proj=recu+pr,R=irCalc(proj*ratio,parts,B);
- return{recu,imp,rest,moy,pr,proj,ir:R.ir,reste:Math.max(0,R.ir-imp),taux:R.taux,np:pm.length}}
+ rest=y===cy?Math.max(0,12-mr):0,pr=rest*moy,proj=recu+pr,R=irCalc(proj*ratio,parts,B),reste=Math.max(0,R.ir-imp),prNet=Math.max(0,pr-reste);
+ return{recu,imp,rest,moy,pr,prNet,proj,ir:R.ir,reste,taux:proj>0?R.ir/proj:0,tauxR:pr>0?Math.min(1,reste/pr):null,np:pm.length}}
 function taxCard(y){const t=taxEst(y);if(!(t.proj>0))return"";
  const k=(l,v,c,w)=>`<div class="kpi${w?" wide":""}" style="--c:var(--${c})"><span>${l}</span><b>${v}</b></div>`,cy=y===TODAY().slice(0,4);
- return card("sal-taxe","Impôt estimé en "+y,`<div class="kpis" style="margin-top:0">${k("Impôt estimé de l'année",eur(t.ir),"orange",1)}${k("Salaires déjà reçus (net avant impôts)",eur(t.recu),"vert")}${k(cy?"Reste de l'année estimé":"Reste de l'année",eur(t.pr),"violet")}${k("Revenu net annuel estimé",eur(t.proj),"bleu")}${k("Taux moyen estimé",fp(t.taux*100),"bleu")}${k("Impôt déjà payé",eur(t.imp),"rouge")}${k("Reste à payer estimé",eur(t.reste),"violet")}</div>
- <div class="d" style="margin-top:8px">${cy?`Reçu + ${t.rest} mois × ${eur(t.moy)} / mois (${t.np?"moyenne des "+t.np+" année"+(t.np>1?"s":"")+" précédente"+(t.np>1?"s":""):"moyenne de l'année en cours"}). `:"Année terminée : salaires réellement reçus. "}Paramètres (parts, barème) : onglet Simulateur d'impôts.</div>`)}
+ const ks=[k("Impôt estimé de l'année",eur(t.ir),"orange",1),k("Salaires déjà reçus (net avant impôts)",eur(t.recu),"vert"),
+  k(cy?"Reste de l'année estimé (net avant impôts)":"Reste de l'année (net avant impôts)",eur(t.pr),"violet")];
+ if(cy)ks.push(k("Reste de l'année estimé (net après impôts)",eur(t.prNet),"bleu"));
+ ks.push(k("Revenu net annuel estimé (avant impôts)",eur(t.proj),"bleu"),k("Taux moyen estimé",fp(t.taux*100),"orange"),k("Impôt déjà payé",eur(t.imp),"rouge"),k("Reste à payer estimé",eur(t.reste),"violet"));
+ if(cy)ks.push(k("Taux sur le reste de l'année",t.tauxR==null?"—":fp(t.tauxR*100),"vert"));
+ return card("sal-taxe","Impôt estimé en "+y,`<div class="kpis" style="margin-top:0">${ks.join("")}</div>
+ <div class="d" style="margin-top:8px">${cy?`Reçu + ${t.rest} mois × ${eur(t.moy)} / mois (${t.np?"moyenne des "+t.np+" année"+(t.np>1?"s":"")+" précédente"+(t.np>1?"s":""):"moyenne de l'année en cours"}). Net après impôts du reste = net avant impôts du reste − reste à payer estimé. `:"Année terminée : salaires réellement reçus. "}Taux moyen = impôt estimé ÷ revenu net avant impôts. Nombre de parts : onglet Simulateur d'impôts.</div>`)}
 /* ---------- Salaires : brut, net avant impôts, impôt payé, net après impôt ---------- */
 function vSal(){
  const cy=TODAY().slice(0,4);
@@ -603,70 +636,127 @@ function vInt(){
  ${card("int-yr","Intéressement / participation / abondement / PPV par année",chart+`<div class="lst">${yrRows}</div>`)}
  ${card("int-hist","Historique · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-int="${s.i}"><div class="m"><b>${esc(s.type)}</b><small>${fdy(s.date)}${s.employeur?" · "+esc(s.employeur):""} · ${esc(s.dest||"")}${s.brut>0?" · brut "+eur2(s.brut):""}</small></div><span class="pos am">${eur2(s.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Nouveaux onglets : Recherche, Santé, Impôts ---------- */
-const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all",hs:"all"};
+const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all",hs:"all",hPr:"o",hS:"n",hMon:null,hg:"all",selMode:false,sel:new Set()};
 const nrm=s=>String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 const fp=v=>(+v.toFixed(1)+"").replace(".",",")+" %";
 const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?"selected":""}>${esc(l)}</option>`;
 
-/* ---------- Simulateur santé : reste à payer (Sécurité sociale + mutuelle Ipeka) ---------- */
-/* Valeurs par défaut INDICATIVES : à remplacer par les garanties du contrat Ipeka (touche une ligne). */
+/* ---------- Simulateur santé : reste à payer (Sécurité sociale + Ipeca socle 0739/461 + sur-complémentaire 0739/462) ----------
+   Garanties issues des notices IPECA MBDA FRANCE (mise à jour 01/01/2026). Les montants « % BR » sont versés EN PLUS de la Sécu.
+   Types de garantie (k) :
+   pr   médecin : o = % BR si signataire OPTAM ; n = [socle hors OPTAM, sur-co si Sécu 100 %, sur-co si Sécu < 100 %]
+   pct  p % de la base de remboursement   · tm  ticket modérateur   · fr  100 % des frais réels
+   frc  frais réels sous déduction Sécu, limités à p % BR   · cap  forfait / plafond v (€) en plus de la Sécu
+   tot  montant v (€) Sécu et TM inclus (optique classe B, psychologue)   · len / len2  lentilles   · aud  aide auditive classe II
+   an : plafond annuel (le « Nombre » cumule les dépenses de l'année).  mon : monture (100 € max pris en charge). */
+const PMSS=4005;
 const ACTS=[
- {id:"gen",nom:"Médecin généraliste",br:30,sec:70,pf:2,t:"pct",v:100,prix:30},
- {id:"spe",nom:"Médecin spécialiste",br:30,sec:70,pf:2,t:"pct",v:100,prix:50},
- {id:"pha",nom:"Pharmacie (médicaments à 65 %)",br:15,sec:65,pf:0,t:"pct",v:100,prix:15},
- {id:"kin",nom:"Kinésithérapie (séance)",br:16.13,sec:60,pf:0,t:"pct",v:100,prix:25},
- {id:"ana",nom:"Analyses de biologie",br:25,sec:60,pf:0,t:"pct",v:100,prix:25},
- {id:"rad",nom:"Radiologie / imagerie",br:40,sec:70,pf:0,t:"pct",v:100,prix:60},
- {id:"dsn",nom:"Dentiste : soins (carie, détartrage)",br:28.92,sec:70,pf:0,t:"pct",v:100,prix:40},
- {id:"dpr",nom:"Dentiste : prothèse (couronne)",br:107.5,sec:70,pf:0,t:"pct",v:100,prix:500},
- {id:"opt",nom:"Optique (monture + verres)",br:10,sec:60,pf:0,t:"forfait",v:150,prix:250},
- {id:"hos",nom:"Hospitalisation (par jour)",br:250,sec:80,pf:0,t:"pct",v:100,prix:350},
- {id:"ost",nom:"Ostéopathe / médecines douces",br:0,sec:0,pf:0,t:"forfait",v:30,prix:60}];
-const getActs=()=>ACTS.map(a=>({...a,...((D.sante&&D.sante.acts&&D.sante.acts[a.id])||{})}));
-function actCalc(a,prix){const sg=Math.min(prix,a.br*a.sec/100),secu=Math.max(0,sg-Math.min(a.pf||0,sg)),
- m=a.t==="forfait"?Math.min(a.v,prix-sg):Math.min(prix,a.br*a.v/100)-sg,mut=Math.max(0,m);return{secu,mut,reste:Math.max(0,prix-secu-mut)}}
+ {id:"gen",g:"Soins courants",nom:"Consultation généraliste",br:30,sec:70,pf:2,prix:30,k:"pr",o:80,n:[60,20,20],t:"Signataire OPTAM : 80 % BR · sinon 60 % BR (socle) + 20 % BR (sur-co)"},
+ {id:"spe",g:"Soins courants",nom:"Consultation spécialiste",br:30,sec:70,pf:2,prix:50,k:"pr",o:170,n:[130,70,40],t:"Signataire OPTAM : 170 % BR · sinon 130 % BR (socle) + 70 % BR si Sécu 100 % / 40 % sinon (sur-co)"},
+ {id:"atm",g:"Soins courants",nom:"Actes techniques médicaux",br:50,sec:70,pf:2,prix:80,k:"pr",o:130,n:[110,30,20],t:"Signataire OPTAM : 130 % BR · sinon 110 % BR (socle) + 30 % si Sécu 100 % / 20 % sinon (sur-co)"},
+ {id:"rad",g:"Soins courants",nom:"Radiologie, échographie, imagerie",br:40,sec:70,pf:2,prix:60,k:"pr",o:130,n:[110,30,20],t:"Signataire OPTAM : 130 % BR · sinon 110 % BR (socle) + 30 % si Sécu 100 % / 20 % sinon (sur-co)"},
+ {id:"sf",g:"Soins courants",nom:"Sage-femme",br:25,sec:70,pf:0,prix:30,k:"pct",p:140,t:"140 % BR"},
+ {id:"kin",g:"Soins courants",nom:"Paramédical (kiné, infirmier…)",br:16.13,sec:60,pf:1,prix:25,k:"pct",p:140,t:"140 % BR (franchise 1 € à ta charge)"},
+ {id:"ana",g:"Soins courants",nom:"Analyses et examens de biologie",br:25,sec:60,pf:2,prix:25,k:"pct",p:180,t:"180 % BR"},
+ {id:"pha",g:"Soins courants",nom:"Médicaments remboursés à 65 %",br:15,sec:65,pf:1,prix:15,k:"tm",t:"100 % du ticket modérateur (franchise 1 € / boîte à ta charge)"},
+ {id:"mat",g:"Soins courants",nom:"Matériel médical (LPP)",br:100,sec:60,pf:0,prix:150,k:"pct",p:290,t:"290 % BR"},
+ {id:"opa",g:"Optique",nom:"Optique 100 % Santé (classe A)",br:80,sec:60,pf:0,prix:200,k:"fr",t:"100 % des frais réels dans la limite des prix limites de vente (classe A) : reste à charge nul"},
+ {id:"opA",g:"Optique",nom:"Optique classe B · équipement A (420 €)",br:40,sec:60,pf:0,prix:450,mon:150,k:"tot",v:420,t:"420 € Sécu et TM inclus, dont 100 € max pour la monture"},
+ {id:"opB",g:"Optique",nom:"Optique classe B · équipement B (560 €)",br:40,sec:60,pf:0,prix:600,mon:150,k:"tot",v:560,t:"560 € Sécu et TM inclus, dont 100 € max pour la monture (1 verre A + 1 verre C)"},
+ {id:"opC",g:"Optique",nom:"Optique classe B · équipement C (700 €)",br:40,sec:60,pf:0,prix:750,mon:150,k:"tot",v:700,t:"700 € Sécu et TM inclus, dont 100 € max pour la monture"},
+ {id:"opD",g:"Optique",nom:"Optique classe B · équipement D (610 €)",br:40,sec:60,pf:0,prix:650,mon:150,k:"tot",v:610,t:"610 € Sécu et TM inclus, dont 100 € max pour la monture (1 verre A + 1 verre F)"},
+ {id:"opE",g:"Optique",nom:"Optique classe B · équipement E (750 €)",br:40,sec:60,pf:0,prix:800,mon:150,k:"tot",v:750,t:"750 € Sécu et TM inclus, dont 100 € max pour la monture (1 verre C + 1 verre F)"},
+ {id:"opF",g:"Optique",nom:"Optique classe B · équipement F (800 €)",br:40,sec:60,pf:0,prix:850,mon:150,k:"tot",v:800,t:"800 € Sécu et TM inclus, dont 100 € max pour la monture"},
+ {id:"len",g:"Optique",nom:"Lentilles remboursées par la Sécu (par œil)",br:40,sec:60,pf:0,prix:150,k:"len",v:.07*PMSS,t:"90 % des frais réels sous déduction Sécu, limité à 7 % PMSS / œil / an (au-delà : TM)"},
+ {id:"len2",g:"Optique",nom:"Lentilles non remboursées (par lentille / an)",br:0,sec:0,pf:0,prix:300,k:"len2",v:.07*PMSS,t:"90 % des frais réels, limité à 7 % PMSS / lentille / an"},
+ {id:"chr",g:"Optique",nom:"Chirurgie réfractive (laser)",br:0,sec:0,pf:0,prix:1200,k:"cap",v:500,an:1,t:"500 € / année civile / bénéficiaire"},
+ {id:"au1",g:"Aides auditives",nom:"Aide auditive 100 % Santé (classe I, par oreille)",br:400,sec:60,pf:0,prix:950,k:"fr",t:"100 % des frais réels dans la limite des prix limites de vente : reste à charge nul"},
+ {id:"au2",g:"Aides auditives",nom:"Aide auditive classe II · adulte >20 ans (par oreille)",br:400,sec:60,pf:0,prix:1500,k:"aud",v:680,t:"680 € par oreille, dans la limite de 1 700 € Sécu et TM inclus"},
+ {id:"aue",g:"Aides auditives",nom:"Aide auditive classe II · enfant ≤20 ans (par oreille)",br:1400,sec:60,pf:0,prix:1600,k:"aud",v:860,t:"860 € par oreille, dans la limite de 1 700 € Sécu et TM inclus"},
+ {id:"pil",g:"Aides auditives",nom:"Piles, accessoires, consommables",br:40,sec:60,pf:0,prix:40,k:"pct",p:100,t:"100 % BR"},
+ {id:"dsn",g:"Dentaire",nom:"Dentiste : soins (carie, détartrage)",br:28.92,sec:70,pf:0,prix:40,k:"pct",p:130,t:"130 % BR"},
+ {id:"d100",g:"Dentaire",nom:"Prothèse dentaire 100 % Santé",br:107.5,sec:70,pf:0,prix:500,k:"fr",t:"100 % des frais réels dans la limite des honoraires limites de facturation : reste à charge nul"},
+ {id:"dmai",g:"Dentaire",nom:"Prothèse / inlay-core / inlay-onlay · panier maîtrisé",br:107.5,sec:70,pf:0,prix:550,k:"pct",p:400,t:"400 % BR (Sécu et TM inclus), dans la limite des honoraires limites de facturation"},
+ {id:"dlib",g:"Dentaire",nom:"Prothèse / inlay-core / inlay-onlay · panier libre",br:107.5,sec:70,pf:0,prix:900,k:"pct",p:400,t:"400 % BR"},
+ {id:"dnr",g:"Dentaire",nom:"Prothèse non remboursée Sécu (hors implant)",br:107.5,sec:0,pf:0,prix:700,k:"pct",p:470,t:"470 % BR reconstituée (BR = base qu'aurait eue un acte identique remboursé)"},
+ {id:"dimp",g:"Dentaire",nom:"Implant dentaire (pilier + implant = 1 acte)",br:0,sec:0,pf:0,prix:1800,k:"cap",v:.37*PMSS,t:"37 % PMSS / acte, 2 actes max / année civile / bénéficiaire"},
+ {id:"dpar",g:"Dentaire",nom:"Parodontologie non remboursée Sécu",br:0,sec:0,pf:0,prix:300,k:"cap",v:200,an:1,t:"200 € / année civile / bénéficiaire"},
+ {id:"or100",g:"Dentaire",nom:"Orthodontie remboursée Sécu à 100 %",br:193.5,sec:100,pf:0,prix:800,k:"pct",p:370,t:"370 % BR"},
+ {id:"or70",g:"Dentaire",nom:"Orthodontie remboursée Sécu à 70 %",br:193.5,sec:70,pf:0,prix:800,k:"pct",p:400,t:"400 % BR"},
+ {id:"ornr",g:"Dentaire",nom:"Orthodontie non remboursée Sécu",br:193.5,sec:0,pf:0,prix:900,k:"pct",p:470,t:"470 % BR reconstituée (prorata temporis si résiliation en cours de traitement)"},
+ {id:"hon",g:"Hospitalisation",nom:"Honoraires (chirurgien, anesthésiste…)",br:300,sec:80,pf:0,prix:600,k:"pr",o:500,n:[120,400,380],t:"Signataire OPTAM/OPTAM-ACO : 500 % BR · sinon 120 % BR (socle, 200 % BR Sécu comprise max) + 400 % si Sécu 100 % / 380 % sinon (sur-co)"},
+ {id:"han",g:"Hospitalisation",nom:"Frais annexes",br:100,sec:80,pf:0,prix:100,k:"pct",p:500,t:"500 % BR"},
+ {id:"hfs",g:"Hospitalisation",nom:"Frais de séjour, établissement conventionné (par jour)",br:800,sec:80,pf:0,prix:1500,k:"frc",p:500,t:"100 % des frais réels sous déduction de la Sécu, limité à 500 % BR"},
+ {id:"hfj",g:"Hospitalisation",nom:"Forfait journalier hospitalier (par jour)",br:0,sec:0,pf:0,prix:23,k:"fr",t:"100 % des frais réels (23 €/j en médecine-chirurgie, 17 €/j en psychiatrie)"},
+ {id:"hac",g:"Hospitalisation",nom:"Accompagnement d'un enfant <17 ans (lit, repas, par jour)",br:0,sec:0,pf:0,prix:50,k:"cap",v:.01*PMSS,t:"1 % PMSS / jour"},
+ {id:"hch",g:"Hospitalisation",nom:"Chambre particulière (y compris ambulatoire, par jour)",br:0,sec:0,pf:0,prix:100,k:"cap",v:.02*PMSS,t:"2 % PMSS / jour"},
+ {id:"htr",g:"Hospitalisation",nom:"Frais de transport (ambulance, taxi conventionné…)",br:80,sec:65,pf:4,prix:80,k:"tm",t:"100 % du ticket modérateur (franchise 4 € à ta charge)"},
+ {id:"hur",g:"Hospitalisation",nom:"Forfait patient urgences",br:0,sec:0,pf:0,prix:19.61,k:"fr",t:"100 % des frais réels"},
+ {id:"hps",g:"Hospitalisation",nom:"Séjour >60 j psychiatrie, convalescence, rééducation (par jour)",br:300,sec:80,pf:0,prix:350,k:"tm",t:"Frais de séjour : 100 % du ticket modérateur (forfait journalier : 100 % FR)"},
+ {id:"nai",g:"Maternité",nom:"Forfait naissance ou adoption",br:0,sec:0,pf:0,prix:150,k:"cap",v:150,t:"150 € par enfant ou par adoption (chambre particulière : 2 % PMSS / jour ; dépassements dans « Soins courants » et « Hospitalisation »)"},
+ {id:"cu1",g:"Autres prestations",nom:"Cure thermale remboursée par la Sécu",br:500,sec:65,pf:0,prix:1000,k:"cap",v:.18*PMSS,t:"18 % PMSS / cure, dans la limite des frais restant à charge"},
+ {id:"cu2",g:"Autres prestations",nom:"Cure thermale non remboursée par la Sécu",br:0,sec:0,pf:0,prix:1000,k:"cap",v:.14*PMSS,t:"14 % PMSS / cure, dans la limite des frais restant à charge"},
+ {id:"psy",g:"Autres prestations",nom:"Psychologue conventionné (Mon soutien psy)",br:50,sec:60,pf:0,prix:50,k:"tot",v:50,t:"50 € / consultation Sécu incluse, 12 consultations / année civile"},
+ {id:"ost",g:"Autres prestations",nom:"Médecine douce (ostéo, chiro, acupuncture…) et sevrage tabagique",br:0,sec:0,pf:0,prix:60,k:"cap",v:100,an:1,t:"100 € / année civile / bénéficiaire"}];
+const getActs=()=>ACTS.map(a=>({...a,...((D.sante&&D.sante.o&&D.sante.o[a.id])||{})}));
+function actCalc(a,prix,x){x=x||{};
+ const s100=!!x.s100&&a.br>0,sec=s100?100:a.sec,pf=s100?0:(a.pf||0),sg=Math.min(prix,a.br*sec/100),secu=Math.max(0,sg-Math.min(pf,sg)),av=Math.max(0,prix-sg),tm=a.br*(100-sec)/100;
+ let m=0,ms=0;
+ if(a.k==="pr"){
+  if(x.pr==="n"){const so=Math.min(a.n[0],Math.max(0,200-sec))*a.br/100,su=a.n[sec>=100?1:2]*a.br/100;m=Math.min(so,av);ms=Math.min(su,Math.max(0,av-m))}
+  else m=Math.min(a.o*a.br/100,av)}
+ else{
+  if(a.k==="pct")m=a.p*a.br/100;
+  else if(a.k==="tm")m=tm;
+  else if(a.k==="fr")m=av;
+  else if(a.k==="frc")m=Math.min(av,a.p*a.br/100);
+  else if(a.k==="cap")m=a.v;
+  else if(a.k==="tot"){const mon=x.mon!=null?x.mon:(a.mon||0);m=Math.min(a.v,prix-Math.max(0,mon-100))-sg}
+  else if(a.k==="len")m=Math.max(tm,Math.min(.9*prix,a.v)-sg);
+  else if(a.k==="len2")m=Math.min(.9*prix,a.v);
+  else if(a.k==="aud")m=Math.min(a.v,1700-sg);
+  m=Math.max(0,Math.min(m,av))}
+ return{secu,mut:m+ms,mutS:ms,reste:Math.max(0,prix-secu-m-ms)}}
 function vSante(){
- const AC=getActs(),cur=AC.find(a=>a.id===UI.hAct)||AC[0],prix=UI.hPrix>0?UI.hPrix:cur.prix,qty=UI.hQty>0?UI.hQty:1,c=actCalc(cur,prix),T=prix*qty,S=c.secu*qty,M=c.mut*qty,Rr=c.reste*qty,p=v=>T>0?(v/T*100).toFixed(2):0;
- const yr=TODAY().slice(0,4),H=OPS().filter(o=>o.categorie==="Santé"&&!isRev(o)&&o.date.startsWith(yr));
- return`${card("h-sim","Simulateur de reste à payer",`<label>Type de dépense</label><select data-u="hAct">${AC.map(a=>opt(a.id,a.nom,cur.id)).join("")}</select>
+ const AC=getActs(),cur=AC.find(a=>a.id===UI.hAct)||AC[0],prix=UI.hPrix>0?UI.hPrix:cur.prix,qty=UI.hQty>0?UI.hQty:1,
+ mon=cur.mon!=null?(typeof UI.hMon==="number"?UI.hMon:cur.mon):null,x={pr:UI.hPr,s100:UI.hS==="100",mon},
+ P=cur.an?prix*qty:prix,q=cur.an?1:qty,c=actCalc(cur,P,x),T=P*q,S=c.secu*q,M=c.mut*q,MS=c.mutS*q,Rr=c.reste*q,p=v=>T>0?(v/T*100).toFixed(2):0,
+ GR=[...new Set(AC.map(a=>a.g))],
+ yr=TODAY().slice(0,4),H=OPS().filter(o=>o.categorie==="Santé"&&!isRev(o)&&o.date.startsWith(yr));
+ return`${card("h-sim","Simulateur de reste à payer",`<label>Type de dépense</label><select data-u="hAct">${GR.map(g=>`<optgroup label="${esc(g)}">${AC.filter(a=>a.g===g).map(a=>opt(a.id,a.nom,cur.id)).join("")}</optgroup>`).join("")}</select>
+ ${cur.k==="pr"?`<label>Praticien</label><select data-u="hPr">${opt("o","Conventionné signataire OPTAM / OPTAM-ACO (ou secteur 1)",UI.hPr)}${opt("n","Conventionné non signataire (secteur 2 hors OPTAM)",UI.hPr)}</select>`:""}
+ ${cur.br>0&&cur.sec<100?`<label>Remboursement Sécu</label><select data-u="hS">${opt("n","Taux normal ("+cur.sec+" %)",UI.hS)}${opt("100","100 % (ALD, maternité, accident du travail)",UI.hS)}</select>`:""}
  <div class="row" style="margin:0"><div style="flex:1;min-width:0"><label>Prix facturé (€)</label><input type="number" step="0.01" inputmode="decimal" data-u="hPrix" value="${prix}"></div>
  <div style="flex:1;min-width:0"><label>Nombre</label><input type="number" step="1" min="1" inputmode="numeric" data-u="hQty" value="${qty}"></div></div>
+ ${mon!=null?`<label>Dont monture (€) : 100 € max pris en charge</label><input type="number" step="0.01" inputmode="decimal" data-u="hMon" value="${mon}">`:""}
+ <div class="d" style="margin-top:8px">${esc(cur.t)}${cur.an?" · plafond annuel : le nombre cumule les dépenses de l'année":""}</div>
+ <div class="d">Base Sécu utilisée : ${eur2(cur.br)} à ${UI.hS==="100"&&cur.br>0?100:cur.sec} % (modifiable en touchant la ligne dans le tableau ci-dessous)</div>
  <div class="pg" style="margin-top:14px"><i style="width:${p(S)}%;background:#0284c7"></i><i style="width:${p(M)}%;background:#0d9488"></i><i style="width:${p(Rr)}%;background:#dc2626"></i></div>
- <div class="pgl"><span><em style="background:#0284c7"></em>Sécu <b>${eur2(S)}</b></span><span><em style="background:#0d9488"></em>Ipeka <b>${eur2(M)}</b></span><span><em style="background:#dc2626"></em>Reste <b>${eur2(Rr)}</b></span></div>
+ <div class="pgl"><span><em style="background:#0284c7"></em>Sécu <b>${eur2(S)}</b></span><span><em style="background:#0d9488"></em>Ipeca <b>${eur2(M)}</b></span><span><em style="background:#dc2626"></em>Reste <b>${eur2(Rr)}</b></span></div>
  <div class="kpis"><div class="kpi" style="--c:var(--violet)"><span>Prix total</span><b>${eur2(T)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Sécurité sociale</span><b>${eur2(S)}</b></div>
- <div class="kpi" style="--c:var(--vert)"><span>Mutuelle Ipeka</span><b>${eur2(M)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Reste à payer</span><b>${eur2(Rr)}</b></div></div>`,"margin-top:0")}
+ <div class="kpi" style="--c:var(--vert)"><span>Mutuelle Ipeca</span><b>${eur2(M)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Reste à payer</span><b>${eur2(Rr)}</b></div></div>
+ ${MS>0?`<div class="d" style="margin-top:8px">Dont sur-complémentaire (0739/462) : <span>${eur2(MS)}</span> · socle (0739/461) : <span>${eur2(M-MS)}</span></div>`:""}`,"margin-top:0")}
  ${card("h-dep","Santé dans mes dépenses · "+yr,`<div class="kpis" style="margin-top:0"><div class="kpi" style="--c:var(--orange)"><span>Dépensé en ${yr}</span><b>${eur(sum(H,"montant"))}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Opérations</span><b>${H.length}</b></div></div>`)}
- ${card("h-rec","Ma mutuelle Ipeka · touche une ligne pour la modifier",`<div class="d" style="margin:0 0 8px;text-align:center">Garanties indicatives : à remplacer par celles de ton contrat</div><div class="tw"><table class="rc wr"><thead><tr><th>Acte</th><th>Sécu</th><th>Ipeka</th><th>Reste</th></tr></thead><tbody>${AC.map(a=>{const r=actCalc(a,a.prix);return`<tr data-act="${a.id}" style="cursor:pointer"><th>${esc(a.nom)}<div class="d">${eur(a.prix)} · Sécu ${a.sec} % · ${a.t==="forfait"?"forfait "+eur(a.v):a.v+" % BR"}</div></th><td class="pos">${eur2(r.secu)}</td><td class="pos">${eur2(r.mut)}</td><td class="neg">${eur2(r.reste)}</td></tr>`}).join("")}</tbody></table></div>`)}`}
+ ${card("h-rec","Ma mutuelle Ipeca · socle 0739/461 + sur-co 0739/462 · touche une ligne pour la modifier",`<div class="d" style="margin:0 0 8px;text-align:center">Garanties des notices MBDA FRANCE (maj. 01/01/2026) · PMSS 2026 : ${eur(PMSS)} · calcul pour un praticien signataire OPTAM, Sécu au taux normal</div><div class="tw"><table class="rc wr"><thead><tr><th>Acte</th><th>Sécu</th><th>Ipeca</th><th>Reste</th></tr></thead><tbody>${AC.map(a=>{const r=actCalc(a,a.prix,{pr:"o",mon:a.mon!=null?a.mon:null});return`<tr data-act="${a.id}" style="cursor:pointer"><th>${esc(a.nom)}<div class="d">${esc(a.g)} · ${eur(a.prix)} · ${esc(a.t)}</div></th><td class="pos">${eur2(r.secu)}</td><td class="pos">${eur2(r.mut)}</td><td class="neg">${eur2(r.reste)}</td></tr>`}).join("")}</tbody></table></div>`)}`}
 
-/* ---------- Simulateur d'impôts : taux de prélèvement à la source conseillé ---------- */
+/* ---------- Simulateur d'impôts : salaire net avant impôts annuel → taux et net après impôts ---------- */
 const BAR={"2025":{n:"Barème en vigueur (revenus 2025)",tr:[[11600,0],[29579,.11],[84577,.3],[181917,.41],[Infinity,.45]],dec:[897,1483],pl:1807},
  "2026":{n:"Barème PLF 2027 (revenus 2026, non voté)",tr:[[11844,0],[30200,.11],[86353,.3],[185737,.41],[Infinity,.45]],dec:[915,1513],pl:1845}},ABAT=[509,14555];
-function irCalc(net,parts,B){const ab=Math.min(Math.max(net*.1,ABAT[0]),ABAT[1]),rev=Math.max(0,net-ab),base=parts>=2?2:1,
+/* ded=false : pas de déduction forfaitaire de 10 % */
+function irCalc(net,parts,B,ded){const ab=ded===false?0:Math.min(Math.max(net*.1,ABAT[0]),ABAT[1]),rev=Math.max(0,net-ab),base=parts>=2?2:1,
  tp=q=>{let t=0,pv=0;for(const[l,r]of B.tr){if(q>pv)t+=(Math.min(q,l)-pv)*r;pv=l;if(q<=l)break}return t};
  let brut=tp(rev/parts)*parts;if(parts>base)brut=Math.max(brut,tp(rev/base)*base-(parts-base)*2*B.pl);
  const dc=Math.max(0,B.dec[base-1]-.4525*brut),ir=Math.max(0,brut-dc),q=rev/parts,tmi=(B.tr.find(x=>q<=x[0])||B.tr[B.tr.length-1])[1];
  return{rev,ir,tmi,taux:net>0?ir/net:0}}
 function vTax(){
- const F=D.fisc||{},parts=F.parts>0?F.parts:1,ratio=F.ratio>0?F.ratio:1.03,B=BAR[F.bar]||BAR["2025"],ca=F.ca>0?F.ca:0,S=D.salaires.filter(s=>s.date);
- const ys=[...new Set(S.map(s=>s.date.slice(0,4)))].sort().reverse(),cy=TODAY().slice(0,4);
- if(!UI.fy||(!ys.includes(UI.fy)&&UI.fy!==cy))UI.fy=ys.includes(cy)?cy:(ys[0]||cy);
- const L=S.filter(s=>s.date.startsWith(UI.fy)),cum=sum(L,"net"),imp=sum(L,"impot"),m=L.reduce((x,s)=>Math.max(x,+s.date.slice(5,7)),0),rest=UI.fy===cy?12-m:0,auto=m?cum+cum/m*rest:0,proj=ca>0?ca:auto;
- const net=proj*ratio,R=irCalc(net,parts,B),restNet=Math.max(0,proj-cum)*ratio,tauxR=restNet>0&&rest>0?Math.min(100,Math.max(0,(R.ir-imp)/restNet*100)):null;
- const ysel=[...new Set(ys.concat([cy]))].sort().reverse();
- const sc=[-20,-10,0,10,20].map(k=>{const pn=proj*(1+k/100),r=irCalc(pn*ratio,parts,B);return`<tr${k===0?' class="tot"':""}><th>${k===0?"Prévision":(k>0?"+":"−")+Math.abs(k)+" %"}</th><td>${eur(pn)}</td><td>${eur(r.ir)}</td><td>${fp(r.taux*100)}</td><td>${fp(r.tmi*100)}</td></tr>`}).join("");
- const pts=Array.from({length:14},(_,i)=>{const rv=proj*(.5+i*.1),r=irCalc(rv*ratio,parts,B);return{l:rv>=1000?Math.round(rv/1000)+"k":Math.round(rv)+"",v:r.ir,tip:tipHtml(eur(rv)+" net / an",[tl("Impôt estimé",eur2(r.ir),TC.o),tl("Taux moyen",fp(r.taux*100),TC.b),tl("Tranche marginale",fp(r.tmi*100))])}});
- const has=proj>0;
- return`${card("t-set","Année et hypothèses",`<label>Année des revenus</label><select data-u="fy">${ysel.map(y=>opt(y,y,UI.fy)).join("")}</select>
- <div class="row" style="margin:0"><div style="flex:1;min-width:0"><label>Nombre de parts</label><input type="number" step="0.5" min="1" inputmode="decimal" data-d="fisc.parts" value="${parts}"></div>
- <div style="flex:1;min-width:0"><label>Net imposable ÷ net perçu</label><input type="number" step="0.01" inputmode="decimal" data-d="fisc.ratio" value="${ratio}"></div></div>
- <label>Revenu net annuel prévu (€) — vide = calculé d'après mes salaires</label><input type="number" step="1" inputmode="decimal" data-d="fisc.ca" value="${ca||""}" placeholder="${Math.round(auto)||""}">
- <label>Barème</label><select data-d="fisc.bar">${Object.keys(BAR).map(k=>opt(k,BAR[k].n,F.bar||"2025")).join("")}</select>
- <div class="d" style="margin-top:8px">Estimation simplifiée : sans crédits ni réductions d'impôt, ni revenus du capital.</div>`,"margin-top:0")}
- ${has?`<div class="kpis"><div class="kpi" style="--c:var(--violet)"><span>Taux à mettre (année)</span><b>${fp(R.taux*100)}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Taux pour la suite</span><b>${tauxR==null?"—":fp(tauxR)}</b></div>
- <div class="kpi" style="--c:var(--orange)"><span>Impôt estimé</span><b>${eur(R.ir)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenu net annuel estimé</span><b>${eur(proj)}</b></div>
- <div class="kpi" style="--c:var(--rouge)"><span>Impôt déjà payé</span><b>${eur(imp)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Reste à payer estimé</span><b>${eur(Math.max(0,R.ir-imp))}</b></div></div>
- ${card("t-scen","Prévisions selon les revenus",`<div class="tw"><table class="rc"><thead><tr><th>Scénario</th><th>Revenu</th><th>Impôt</th><th>Taux</th><th>TMI</th></tr></thead><tbody>${sc}</tbody></table></div>`)}
- ${card("t-chart","Impôt estimé selon le revenu annuel",areaChart(pts,{col:"#f97316"}))}`:'<div class="card"><div class="empty">Aucun salaire pour cette année : ajoute-en dans Suivi Salaire ou saisis un revenu net annuel prévu ci-dessus.</div></div>'}`}
+ const F=D.fisc||{},parts=F.parts>0?F.parts:1,ratio=F.ratio>0?F.ratio:1.03,B=BAR[F.bar]||BAR["2025"],ded=F.ded!==false,cy=TODAY().slice(0,4),
+ auto=Math.round(taxEst(cy).proj),ca=F.ca>0?F.ca:auto,
+ R=irCalc(ca*ratio,parts,B,ded),taux=ca>0?R.ir/ca:0,mb=ca/12,mn=(ca-R.ir)/12;
+ return`${card("t-set","Simulateur d'impôts",`<label>Salaire net avant impôts annuel (€) — vide = estimé d'après mes salaires</label><input type="number" step="1" inputmode="decimal" data-d="fisc.ca" value="${F.ca>0?F.ca:""}" placeholder="${auto||""}">
+ <label>Nombre de parts</label><input type="number" step="0.5" min="1" inputmode="decimal" data-d="fisc.parts" value="${parts}">
+ <label style="display:flex;align-items:center;gap:10px;margin-top:12px;font-size:.85rem;color:var(--txt)"><input type="checkbox" data-d="fisc.ded" ${ded?"checked":""} style="width:22px;height:22px;padding:0;flex:none"> Déduction fiscale de 10 %</label>
+ <div class="d" style="margin-top:8px">Estimation simplifiée (sans crédits ni réductions d'impôt, ni revenus du capital). Net imposable ≈ net avant impôts × ${String(ratio).replace(".",",")}.</div>`,"margin-top:0")}
+ ${ca>0?`<div class="kpis k3"><div class="kpi" style="--c:var(--bleu)"><span>Net avant impôts / mois</span><b>${eur(mb)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Taux d'imposition</span><b>${fp(taux*100)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Net après impôts / mois</span><b>${eur(mn)}</b></div></div>`:'<div class="card"><div class="empty">Saisis un salaire net avant impôts annuel, ou ajoute des salaires dans Suivi Salaire.</div></div>'}`}
 /* Ordre des onglets : … Suivi Salaire · Prime · Simulateur d'impôts · Santé (tout à droite) · Données */
 const TABS=[["home","🏠","Vue d'ensemble",vHome],["ana","📊","Analyse",vAna],["rec","🔁","Dépenses récurrentes",vRec],["cred","🏦","Suivi Crédit",vCred],["sal","💼","Suivi Salaire",vSal],["int","🎁","Prime",vInt],["tax","🧾","Simulateur d'impôts",vTax],["sante","🩺","Santé",vSante],["data","🔄","Données",vData]];
 /* Limite chaque liste et chaque tableau à 5 lignes visibles, le reste défile */
@@ -685,13 +775,24 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  const ps=$("#pSel");if(ps)ps.onchange=e=>{per=e.target.value;render()};
  document.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{gran=b.dataset.g;render()});
  const qi=$("#q");if(qi)qi.oninput=e=>{q=e.target.value.toLowerCase();const p=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(p,p)};
- document.querySelectorAll("[data-op]").forEach(b=>b.onclick=()=>openOp(+b.dataset.op));
+ document.querySelectorAll("[data-op]").forEach(b=>b.onclick=()=>{const i=+b.dataset.op;if(!UI.selMode)return openOp(i);
+  UI.sel.has(i)?UI.sel.delete(i):UI.sel.add(i);b.classList.toggle("sel",UI.sel.has(i));const k=b.querySelector(".ck");if(k)k.textContent=UI.sel.has(i)?"☑":"☐";refSel()});
+ document.querySelectorAll("[data-grp]").forEach(b=>b.onclick=()=>{UI.hg=b.dataset.grp;render();scrollTo(0,0)});
  const g=(id,f)=>{const e=$(id);if(e)e.onclick=f};
- document.querySelectorAll("[data-u]").forEach(el=>{const k=el.dataset.u,f=()=>{UI[k]=el.type==="number"?(el.value===""?"":parseFloat(el.value)):el.value;if(k==="hAct")UI.hPrix=null};
+ document.querySelectorAll("[data-u]").forEach(el=>{const k=el.dataset.u,f=()=>{UI[k]=el.type==="number"?(el.value===""?"":parseFloat(el.value)):el.value;if(k==="hAct"){UI.hPrix=null;UI.hMon=null}};
   if(el.dataset.live)el.oninput=()=>{f();const p=el.selectionStart;render();const n=document.querySelector('[data-u="'+k+'"]');n.focus();try{n.setSelectionRange(p,p)}catch(e){}};else el.onchange=()=>{f();render()}});
- document.querySelectorAll("[data-d]").forEach(el=>el.onchange=()=>{const[a,b]=el.dataset.d.split(".");D[a]=D[a]||{};D[a][b]=el.type==="number"?(el.value===""?0:parseFloat(el.value)):el.value;save();render()});
+ document.querySelectorAll("[data-d]").forEach(el=>el.onchange=()=>{const[a,b]=el.dataset.d.split(".");D[a]=D[a]||{};D[a][b]=el.type==="checkbox"?el.checked:(el.type==="number"?(el.value===""?0:parseFloat(el.value)):el.value);save();render()});
  document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>openAct(b.dataset.act));
- g("#sReset",()=>{q="";UI.scat="all";UI.hs="all";render()});
+ g("#sReset",()=>{q="";UI.scat="all";UI.hs="all";UI.hg="all";render()});
+ g("#bGrp",()=>{UI.selMode=true;UI.sel=new Set();render()});
+ g("#selEnd",()=>{UI.selMode=false;UI.sel=new Set();render()});
+ g("#selNone",()=>{UI.sel=new Set();render()});
+ g("#selAll",()=>{document.querySelectorAll("[data-op]").forEach(b=>UI.sel.add(+b.dataset.op));render()});
+ g("#selUn",()=>{if(!UI.sel.size)return alert("Sélectionne d'abord des opérations.");UI.sel.forEach(i=>{if(D.depenses[i])delete D.depenses[i].groupe});save();UI.sel=new Set();render()});
+ g("#selSave",()=>{if(!UI.sel.size)return alert("Sélectionne d'abord des opérations.");const s=selSum();$("#gInfo").textContent=s.n+" opération(s) · coût net "+eur2(s.d-s.r);$("#gNom").value=UI.hg!=="all"?UI.hg:"";
+  $("#gLst").innerHTML=[...new Set(D.depenses.map(o=>o.groupe).filter(Boolean))].map(x=>`<option value="${esc(x)}">`).join("");$("#dlgG").showModal()});
+ g("#gRen",()=>{const n=(prompt("Nouveau nom du groupe :",UI.hg)||"").trim();if(!n||n===UI.hg)return;D.depenses.forEach(o=>{if(o.groupe===UI.hg)o.groupe=n});UI.hg=n;save();render()});
+ g("#gDel",()=>{if(confirm("Dissoudre le groupe « "+UI.hg+" » ? Les opérations sont conservées.")){D.depenses.forEach(o=>{if(o.groupe===UI.hg)delete o.groupe});UI.hg="all";save();render()}});
  const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
  
  document.querySelectorAll("[data-sal]").forEach(b=>b.onclick=()=>openSal(+b.dataset.sal));
@@ -715,7 +816,7 @@ function fromXml(raw){const doc=new DOMParser().parseFromString(raw,"application
 function toCsv(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"';return"\uFEFFDate;Libelle;Categorie;Montant;Sens\n"+D.depenses.map(o=>[o.date,q(o.libelle),q(o.categorie),String(o.montant).replace(".",","),o.sens].join(";")).join("\n")}
 function norm(p){const n=x=>parseFloat(x)||0;
  return{sante:p.sante,fisc:p.fisc,version:1,exporte_le:p.exporte_le||"",
- depenses:(p.depenses||[]).filter(o=>o.date).map(o=>({date:String(o.date).slice(0,10),libelle:String(o.libelle??""),categorie:String(o.categorie??"Divers"),montant:n(o.montant),sens:o.sens||(REV.includes(o.categorie)?"Revenu":"Dépense"),...(o.lien?{lien:String(o.lien)}:{})})),
+ depenses:(p.depenses||[]).filter(o=>o.date).map(o=>({date:String(o.date).slice(0,10),libelle:String(o.libelle??""),categorie:String(o.categorie??"Divers"),montant:n(o.montant),sens:o.sens||(REV.includes(o.categorie)?"Revenu":"Dépense"),...(o.lien?{lien:String(o.lien)}:{}),...(o.groupe?{groupe:String(o.groupe)}:{})})),
  recurrentes:(p.recurrentes||[]).map(r=>({libelle:String(r.libelle??""),categorie:String(r.categorie??""),montant:n(r.montant),type:r.type||"Charge"})),
  interessement:p.interessement?p.interessement.map(s=>({date:String(s.date||"").slice(0,10),type:String(s.type||"Intéressement"),montant:n(s.montant),brut:n(s.brut),dest:String(s.dest||""),employeur:String(s.employeur||"")})):undefined,
  salaires:(p.salaires||[]).map(s=>({date:String(s.date||"").slice(0,10),employeur:String(s.employeur??""),type:String(s.type??""),net:n(s.net),impot:n(s.impot),brut:n(s.brut),notes:String(s.notes??""),...(s.lien?{lien:String(s.lien)}:{})})),
@@ -757,6 +858,9 @@ $("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";
  if(!confirm("Remplacer les données du téléphone par :\n"+log.join("\n")))return;
  D=nd;save();render();alert("Import terminé :\n"+log.join("\n"))};
 
+$("#gCancel").onclick=()=>$("#dlgG").close();
+$("#frmG").onsubmit=e=>{const n=$("#gNom").value.trim();if(!n){e.preventDefault();return}
+ UI.sel.forEach(i=>{if(D.depenses[i])D.depenses[i].groupe=n});save();UI.selMode=false;UI.sel=new Set();UI.hg=n;render();scrollTo(0,0)};
 /* Ajout d'une opération (un revenu « Salaire » crée aussi la ligne dans Suivi Salaire, reliée par « lien ») */
 const dlg=$("#dlg");let oIdx=-1,oAllow=true,oLink=null,salOn=false;
 function catsFor(s){return CATS.filter(c=>REV.includes(c)===(s==="Revenu"))}
@@ -855,12 +959,12 @@ $("#pDel").onclick=()=>{if(pIdx>=0&&confirm("Supprimer ce prêt ?")){D.prets.spl
 $("#frmP").onsubmit=e=>{const c=parseFloat($("#pCap").value),n=parseInt($("#pDur").value);if(!(c>0)||!(n>0)){e.preventDefault();return}
  const o={...(pIdx>=0?D.prets[pIdx]:{}),nom:$("#pNom").value.trim(),capital:Math.round(c*100)/100,taux:parseFloat($("#pTaux").value)||0,duree:n,date_debut:$("#pDeb").value,assurance:parseFloat($("#pAss").value)||0,premiere_reelle:parseFloat($("#pPrem").value)||0};
  if(pIdx>=0)D.prets[pIdx]=o;else D.prets.push(o);save();render()};
-/* Modification d'un acte de santé */
+/* Modification d'un acte de santé (base Sécu, taux Sécu, franchise, prix habituel) */
 const dlgM=$("#dlgM");let mId=null;
-function openAct(id){mId=id;const a=getActs().find(x=>x.id===id);$("#mTitle").textContent=a.nom;$("#mBr").value=a.br;$("#mSec").value=a.sec;$("#mPf").value=a.pf||0;$("#mTy").value=a.t;$("#mV").value=a.v;$("#mPrix").value=a.prix;dlgM.showModal()}
+function openAct(id){mId=id;const a=getActs().find(x=>x.id===id);$("#mTitle").textContent=a.nom;$("#mG").textContent=a.t;$("#mBr").value=a.br;$("#mSec").value=a.sec;$("#mPf").value=a.pf||0;$("#mPrix").value=a.prix;dlgM.showModal()}
 $("#mCancel").onclick=()=>dlgM.close();
-$("#mReset").onclick=()=>{if(D.sante&&D.sante.acts)delete D.sante.acts[mId];save();dlgM.close();render()};
-$("#frmM").onsubmit=()=>{const n=x=>parseFloat($(x).value)||0;D.sante=D.sante||{};D.sante.acts=D.sante.acts||{};D.sante.acts[mId]={br:n("#mBr"),sec:n("#mSec"),pf:n("#mPf"),t:$("#mTy").value,v:n("#mV"),prix:n("#mPrix")};save();render()};
+$("#mReset").onclick=()=>{if(D.sante&&D.sante.o)delete D.sante.o[mId];save();dlgM.close();render()};
+$("#frmM").onsubmit=()=>{const n=x=>parseFloat($(x).value)||0;D.sante=D.sante||{};D.sante.o=D.sante.o||{};D.sante.o[mId]={br:n("#mBr"),sec:n("#mSec"),pf:n("#mPf"),prix:n("#mPrix")};save();render()};
 /* Ajout / modification d'une récurrence */
 const dlgR=$("#dlgR");let rIdx=-1,rType="Charge";
 function setRT(t){rType=t;$("#rC").style.outline=t==="Charge"?"2px solid var(--bleu)":"none";$("#rV").style.outline=t==="Revenu"?"2px solid var(--bleu)":"none";
