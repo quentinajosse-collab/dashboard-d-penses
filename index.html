@@ -227,7 +227,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="25.6-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="25.7-a",KEY="depenses_v1",FKEY="depenses_fold";
 let D=load(),tab="home",per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
@@ -376,15 +376,21 @@ function fixPer(){if(per.startsWith("m:")&&!months().includes(per.slice(2)))per=
 /* ---------- Onglet 1 : période + revenus/dépenses/solde + liste ---------- */
 function vHome(){
  fixPer();
- const{a,b}=perRange(),P=OPS().filter(o=>o.date>=a&&o.date<=b);
- const r=P.filter(isRev).reduce((s,o)=>s+o.montant,0),d=P.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0);
- const L=D.depenses.map((o,i)=>({...o,i})).filter(o=>o.date>=a&&o.date<=b&&(!q||(o.libelle+o.categorie).toLowerCase().includes(q))).sort((x,y)=>y.date.localeCompare(x.date));
- return`<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Période</label><select id="pSel">${perSel()}</select></div>
+ const{a,b}=perRange(),used={};D.depenses.forEach(o=>{if(o.date)used[o.categorie]=1});
+ const cats=Object.keys(used).sort((x,y)=>x.localeCompare(y,"fr"));
+ if(UI.scat!=="all"&&!used[UI.scat])UI.scat="all";
+ const t=nrm(q.trim()),filt=!!t||UI.scat!=="all"||UI.hs!=="all";
+ const L=D.depenses.map((o,i)=>({...o,i})).filter(o=>/^\d{4}-\d{2}-\d{2}$/.test(o.date||"")&&o.date>=a&&o.date<=b&&(UI.hs==="all"||(isRev(o)?"Revenu":"Dépense")===UI.hs)&&(UI.scat==="all"||o.categorie===UI.scat)&&(!t||nrm(o.libelle).includes(t))).sort((x,y)=>y.date.localeCompare(x.date));
+ const r=L.filter(isRev).reduce((s,o)=>s+o.montant,0),d=L.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0);
+ return`<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée et recherche</div>
+ <label>Période</label><select id="pSel">${perSel()}</select>
+ <label>Rechercher (libellé)</label><input id="q" placeholder="🔍 Ex. coiffeur, pharmacie…" value="${esc(q)}" autocomplete="off">
+ <div class="row" style="margin:0"><div style="flex:1;min-width:0"><label>Catégorie</label><select data-u="scat"><option value="all">Toutes</option>${cats.map(c=>opt(c,c,UI.scat)).join("")}</select></div>
+ <div style="flex:1;min-width:0"><label>Type</label><select data-u="hs">${opt("all","Les deux",UI.hs)}${opt("Dépense","Dépenses",UI.hs)}${opt("Revenu","Revenus",UI.hs)}</select></div></div>
+ ${filt?'<button class="sec" id="sReset" style="width:100%;margin-top:10px">↺ Réinitialiser la recherche</button>':""}</div>
  <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div>
  <div class="kpi wide" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div></div>
- ${card("home-list","Opérations de la période · "+L.length,`<input id="q" placeholder="🔍 Rechercher…" value="${esc(q)}">
- <div class="lst">${L.length?L.map(o=>`<div class="op" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join(""):'<div class="empty">Aucune opération sur cette période</div>'}</div>`)}
- ${vSearch()}`}
+ ${card("home-list","Opérations sur la période · "+L.length,`<div class="lst">${L.length?L.map(o=>`<div class="op" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`,"margin-top:0")}`}
 
 /* ---------- Onglet 2 : analyse ---------- */
 function vAna(){
@@ -528,40 +534,10 @@ function vInt(){
  ${card("int-yr","Intéressement / participation / abondement / PPV par année",chart+`<div class="lst">${yrRows}</div>`)}
  ${card("int-hist","Historique · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-int="${s.i}"><div class="m"><b>${esc(s.type)}</b><small>${fdy(s.date)}${s.employeur?" · "+esc(s.employeur):""} · ${esc(s.dest||"")}${s.brut>0?" · brut "+eur2(s.brut):""}</small></div><span class="pos am">${eur2(s.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Nouveaux onglets : Recherche, Santé, Impôts ---------- */
-const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all"};
+const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all",hs:"all"};
 const nrm=s=>String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 const fp=v=>(+v.toFixed(1)+"").replace(".",",")+" %";
 const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?"selected":""}>${esc(l)}</option>`;
-
-/* Recherche par catégorie et / ou par dépense (libellé) sur tout l'historique */
-function vSearch(){
- const all=D.depenses.map((o,i)=>({...o,i})).filter(o=>o.date),used={};all.forEach(o=>{used[o.categorie]=(used[o.categorie]||0)+1});
- const cats=Object.keys(used).sort((a,b)=>a.localeCompare(b,"fr")),ys=[...new Set(all.map(o=>o.date.slice(0,4)))].sort().reverse(),t=nrm(UI.sq.trim());
- if(UI.scat!=="all"&&!used[UI.scat])UI.scat="all";
- if(UI.syr!=="all"&&!ys.includes(UI.syr))UI.syr="all";
- const R=all.filter(o=>(UI.ssens==="all"||(isRev(o)?"Revenu":"Dépense")===UI.ssens)&&(UI.scat==="all"||o.categorie===UI.scat)&&(UI.syr==="all"||o.date.startsWith(UI.syr))&&(!t||nrm(o.libelle).includes(t))).sort((a,b)=>b.date.localeCompare(a.date));
- const mixed=UI.ssens==="all",sg=o=>mixed&&!isRev(o)?-o.montant:o.montant,tot=R.reduce((s,o)=>s+sg(o),0),n=R.length;
- let chart='<div class="empty">Aucun résultat</div>';
- if(n){const byY=UI.syr==="all"&&ys.length>1,gr=byY?"annee":"mois",G={};
-  R.forEach(o=>{const k=byY?o.date.slice(0,4):o.date.slice(0,7),x=G[k]??={v:0,n:0};x.v+=sg(o);x.n++});
-  const a=UI.syr!=="all"?UI.syr+"-01-01":R[R.length-1].date,b=UI.syr!=="all"?UI.syr+"-12-31":R[0].date,col=UI.ssens==="Revenu"?"#0d9488":"#dc2626";
-  chart=barChart(mkBuckets(a,b,gr).map(k=>{const x=G[k]||{v:0,n:0},[l1,l2]=lbl(gr,k,0);
-   return{l1,l2,v:Math.abs(x.v),c:x.v<0?"#dc2626":col,tip:tipHtml(gr==="annee"?k:cap(mlabel(k)),[tl(mixed?"Solde":"Total",eur2(x.v),TC.b),tl("Opérations",x.n)])}}),{col,bw:BW[byY?"annee":"mois"],vals:true})}
- const LB={},LN={};R.forEach(o=>{const k=o.libelle||"—";LB[k]=(LB[k]||0)+o.montant;LN[k]=(LN[k]||0)+1});
- const top=Object.entries(LB).sort((a,b)=>b[1]-a[1]).slice(0,10);
- const filt=UI.sq||UI.scat!=="all"||UI.syr!=="all"||UI.ssens!=="Dépense";
- return`<div class="card" style="margin-top:0"><div class="sh">🔎 Rechercher dans l'historique</div>
- <label>Dépense (libellé)</label><input id="sq" data-u="sq" data-live="1" placeholder="Ex. coiffeur, pharmacie…" list="slibs" value="${esc(UI.sq)}" autocomplete="off">
- <datalist id="slibs">${[...new Set(all.map(o=>o.libelle))].slice(-500).map(l=>`<option value="${esc(l)}">`).join("")}</datalist>
- <label>Catégorie</label><select data-u="scat"><option value="all">Toutes les catégories</option>${cats.map(c=>opt(c,c+" ("+used[c]+")",UI.scat)).join("")}</select>
- <div class="row" style="margin:0"><div style="flex:1;min-width:0"><label>Type</label><select data-u="ssens">${opt("Dépense","Dépenses",UI.ssens)}${opt("Revenu","Revenus",UI.ssens)}${opt("all","Les deux",UI.ssens)}</select></div>
- <div style="flex:1;min-width:0"><label>Année</label><select data-u="syr">${opt("all","Toutes",UI.syr)}${ys.map(y=>opt(y,y,UI.syr)).join("")}</select></div></div>
- ${filt?'<button class="sec" id="sReset" style="width:100%;margin-top:10px">↺ Réinitialiser la recherche</button>':""}</div>
- <div class="kpis"><div class="kpi" style="--c:var(--${mixed?"bleu":UI.ssens==="Revenu"?"vert":"rouge"})"><span>${mixed?"Solde":"Total"}</span><b>${eur2(tot)}</b></div><div class="kpi" style="--c:var(--violet)"><span>Opérations</span><b>${n}</b></div>
- <div class="kpi" style="--c:var(--orange)"><span>Moyenne</span><b>${n?eur2(tot/n):"—"}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Dernière</span><b style="font-size:1rem">${n?fdy(R[0].date):"—"}</b></div></div>
- ${card("s-chart","Évolution des résultats",chart)}
- ${top.length>1?card("s-lib","Détail par libellé",bars(Object.fromEntries(top),null,(k,v)=>tipHtml(k,[tl("Total",eur2(v),TC.b),tl("Opérations",LN[k]),tl("Moyenne",eur2(v/LN[k]),TC.o)]))):""}
- ${card("s-list","Résultats · "+n,`<div class="lst">${n?R.map(o=>`<div class="op" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join(""):'<div class="empty">Aucun résultat</div>'}</div>`)}`}
 
 /* ---------- Simulateur santé : reste à payer (Sécurité sociale + mutuelle Ipeka) ---------- */
 /* Valeurs par défaut INDICATIVES : à remplacer par les garanties du contrat Ipeka (touche une ligne). */
@@ -646,7 +622,7 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
   if(el.dataset.live)el.oninput=()=>{f();const p=el.selectionStart;render();const n=document.querySelector('[data-u="'+k+'"]');n.focus();try{n.setSelectionRange(p,p)}catch(e){}};else el.onchange=()=>{f();render()}});
  document.querySelectorAll("[data-d]").forEach(el=>el.onchange=()=>{const[a,b]=el.dataset.d.split(".");D[a]=D[a]||{};D[a][b]=el.type==="number"?(el.value===""?0:parseFloat(el.value)):el.value;save();render()});
  document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>openAct(b.dataset.act));
- g("#sReset",()=>{UI.sq="";UI.scat="all";UI.ssens="Dépense";UI.syr="all";render()});
+ g("#sReset",()=>{q="";UI.scat="all";UI.hs="all";render()});
  const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
  
  document.querySelectorAll("[data-sal]").forEach(b=>b.onclick=()=>openSal(+b.dataset.sal));
