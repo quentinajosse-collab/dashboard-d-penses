@@ -257,7 +257,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="26.4-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="26.4-b",KEY="depenses_v1",FKEY="depenses_fold";
 const TKEY="depenses_tab",TIDS=["home","ana","rec","cred","sal","tax","int","sante","data"];
 let D=load(),tab=loadTab(),per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
@@ -586,7 +586,7 @@ function taxEst(y){
  const F=D.fisc||{},parts=F.parts>0?F.parts:1,ratio=F.ratio>0?F.ratio:1.03,B=BAR[F.bar]||BAR["2025"],cy=TODAY().slice(0,4),
  S=D.salaires.filter(s=>s.date&&s.date.startsWith(y)),recu=sum(S,"net"),imp=sum(S,"impot"),mr=new Set(S.map(s=>s.date.slice(0,7))).size,prev={};
  D.salaires.forEach(s=>{if(s.date&&s.date.slice(0,4)<y){const a=s.date.slice(0,4),p=prev[a]??={n:0,m:new Set()};p.n+=s.net;p.m.add(s.date.slice(5,7))}});
- const pm=Object.values(prev).map(p=>p.n/p.m.size),moy=pm.length?pm.reduce((a,b)=>a+b,0)/pm.length:(mr?recu/mr:0),
+ const pm=Object.values(prev).map(p=>p.n/p.m.size),moy=mr?recu/mr:(pm.length?pm.reduce((a,b)=>a+b,0)/pm.length:0),
  rest=y===cy?Math.max(0,12-mr):0,pr=rest*moy,proj=recu+pr,R=irCalc(proj*ratio,parts,B),reste=Math.max(0,R.ir-imp),prNet=Math.max(0,pr-reste);
  return{recu,imp,rest,moy,pr,prNet,proj,netAp:Math.max(0,proj-R.ir),ir:R.ir,reste,taux:proj>0?R.ir/proj:0,tauxR:pr>0?Math.min(1,reste/pr):null,np:pm.length}}
 function taxCard(y){const t=taxEst(y);if(!(t.proj>0))return"";
@@ -595,7 +595,7 @@ function taxCard(y){const t=taxEst(y);if(!(t.proj>0))return"";
  if(cy)ks.push(k("Taux à indiquer sur impots.gouv (pour le reste de l'année)",t.rest>0?(t.reste>0?fp(t.tauxR*100):"0 % (impôt déjà couvert)"):"—","vert",1));
  ks.push(k("Taux moyen estimé de l'année",fp(t.taux*100),"orange"),k("Net avant impôts estimé / an",eur(t.proj),"bleu"),k("Net après impôts estimé / an",eur(t.netAp),"vert"));
  return card("sal-taxe","Impôt estimé en "+y,`<div class="kpis" style="margin-top:0">${ks.join("")}</div>
- <div class="d" style="margin-top:8px">${cy?`Net avant impôts estimé = déjà reçu (${eur(t.recu)}) + ${t.rest} mois × ${eur(t.moy)} (${t.np?"moyenne mensuelle des années précédentes":"moyenne de l'année en cours"}). Taux à indiquer = reste à payer estimé ÷ net avant impôts des mois restants (${eur(t.pr)}), soit ${eur(t.prNet)} de net après impôts sur le reste de l'année. `:"Année terminée : salaires réellement reçus. "}Taux moyen = impôt estimé ÷ net avant impôts de l'année. Nombre de parts : onglet Simulateur d'impôts.</div>`)}
+ <div class="d" style="margin-top:8px">${cy?`Net avant impôts estimé de l'année = déjà reçu (${eur(t.recu)}) + ${t.rest} mois × ${eur(t.moy)} (moyenne mensuelle des salaires déjà reçus cette année). Taux à indiquer = reste à payer estimé ÷ net avant impôts des mois restants (${eur(t.pr)}), soit ${eur(t.prNet)} de net après impôts sur le reste de l'année. `:"Année terminée : salaires réellement reçus. "}Taux moyen = impôt estimé ÷ net avant impôts de l'année. Nombre de parts : onglet Simulateur d'impôts.</div>`)}
 /* ---------- Salaires : brut, net avant impôts, impôt payé, net après impôt ---------- */
 function vSal(){
  const cy=TODAY().slice(0,4);
