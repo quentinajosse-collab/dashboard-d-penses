@@ -257,7 +257,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="26.3-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="26.4-a",KEY="depenses_v1",FKEY="depenses_fold";
 const TKEY="depenses_tab",TIDS=["home","ana","rec","cred","sal","tax","int","sante","data"];
 let D=load(),tab=loadTab(),per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
@@ -588,16 +588,14 @@ function taxEst(y){
  D.salaires.forEach(s=>{if(s.date&&s.date.slice(0,4)<y){const a=s.date.slice(0,4),p=prev[a]??={n:0,m:new Set()};p.n+=s.net;p.m.add(s.date.slice(5,7))}});
  const pm=Object.values(prev).map(p=>p.n/p.m.size),moy=pm.length?pm.reduce((a,b)=>a+b,0)/pm.length:(mr?recu/mr:0),
  rest=y===cy?Math.max(0,12-mr):0,pr=rest*moy,proj=recu+pr,R=irCalc(proj*ratio,parts,B),reste=Math.max(0,R.ir-imp),prNet=Math.max(0,pr-reste);
- return{recu,imp,rest,moy,pr,prNet,proj,ir:R.ir,reste,taux:proj>0?R.ir/proj:0,tauxR:pr>0?Math.min(1,reste/pr):null,np:pm.length}}
+ return{recu,imp,rest,moy,pr,prNet,proj,netAp:Math.max(0,proj-R.ir),ir:R.ir,reste,taux:proj>0?R.ir/proj:0,tauxR:pr>0?Math.min(1,reste/pr):null,np:pm.length}}
 function taxCard(y){const t=taxEst(y);if(!(t.proj>0))return"";
  const k=(l,v,c,w)=>`<div class="kpi${w?" wide":""}" style="--c:var(--${c})"><span>${l}</span><b>${v}</b></div>`,cy=y===TODAY().slice(0,4);
- const ks=[k("Impôt estimé de l'année",eur(t.ir),"orange",1),k("Salaires déjà reçus (net avant impôts)",eur(t.recu),"vert"),
-  k(cy?"Reste de l'année estimé (net avant impôts)":"Reste de l'année (net avant impôts)",eur(t.pr),"violet")];
- if(cy)ks.push(k("Reste de l'année estimé (net après impôts)",eur(t.prNet),"bleu"));
- ks.push(k("Revenu net annuel estimé (avant impôts)",eur(t.proj),"bleu"),k("Taux moyen estimé",fp(t.taux*100),"orange"),k("Impôt déjà payé",eur(t.imp),"rouge"),k("Reste à payer estimé",eur(t.reste),"violet"));
- if(cy)ks.push(k("Taux sur le reste de l'année",t.tauxR==null?"—":fp(t.tauxR*100),"vert"));
+ const ks=[k("Impôt estimé de l'année",eur(t.ir),"orange",1),k("Impôt déjà payé",eur(t.imp),"rouge"),k("Reste à payer estimé",eur(t.reste),"violet")];
+ if(cy)ks.push(k("Taux à indiquer sur impots.gouv (pour le reste de l'année)",t.rest>0?(t.reste>0?fp(t.tauxR*100):"0 % (impôt déjà couvert)"):"—","vert",1));
+ ks.push(k("Taux moyen estimé de l'année",fp(t.taux*100),"orange"),k("Net avant impôts estimé / an",eur(t.proj),"bleu"),k("Net après impôts estimé / an",eur(t.netAp),"vert"));
  return card("sal-taxe","Impôt estimé en "+y,`<div class="kpis" style="margin-top:0">${ks.join("")}</div>
- <div class="d" style="margin-top:8px">${cy?`Reçu + ${t.rest} mois × ${eur(t.moy)} / mois (${t.np?"moyenne des "+t.np+" année"+(t.np>1?"s":"")+" précédente"+(t.np>1?"s":""):"moyenne de l'année en cours"}). Net après impôts du reste = net avant impôts du reste − reste à payer estimé. `:"Année terminée : salaires réellement reçus. "}Taux moyen = impôt estimé ÷ revenu net avant impôts. Nombre de parts : onglet Simulateur d'impôts.</div>`)}
+ <div class="d" style="margin-top:8px">${cy?`Net avant impôts estimé = déjà reçu (${eur(t.recu)}) + ${t.rest} mois × ${eur(t.moy)} (${t.np?"moyenne mensuelle des années précédentes":"moyenne de l'année en cours"}). Taux à indiquer = reste à payer estimé ÷ net avant impôts des mois restants (${eur(t.pr)}), soit ${eur(t.prNet)} de net après impôts sur le reste de l'année. `:"Année terminée : salaires réellement reçus. "}Taux moyen = impôt estimé ÷ net avant impôts de l'année. Nombre de parts : onglet Simulateur d'impôts.</div>`)}
 /* ---------- Salaires : brut, net avant impôts, impôt payé, net après impôt ---------- */
 function vSal(){
  const cy=TODAY().slice(0,4);
@@ -607,11 +605,12 @@ function vSal(){
  if(!all.length)return`<div class="card" style="margin-top:0"><div class="empty">Aucun salaire enregistré pour le moment.<br>Saisis un revenu de catégorie « Salaire » depuis la Vue d'ensemble (bouton +), ou importe <b>mes_salaires.xlsx</b> depuis l'onglet Données.</div></div>`;
  const L=salY==="all"?all:all.filter(s=>s.date.startsWith(salY)),net=sum(L,"net"),imp=sum(L,"impot"),brut=sum(L,"brut");
  const YR=ys.slice().reverse().map(y=>{const l=all.filter(s=>s.date.startsWith(y)),mo=new Set(l.map(s=>s.date.slice(0,7))).size||1,n=sum(l,"net"),im=sum(l,"impot"),b=sum(l,"brut");return{y,n,im,ap:n-im,b,c:l.length,moy:n/mo,moyAp:(n-im)/mo,moyB:b/mo,moyIm:im/mo}});
- YR.forEach((r,i)=>{const p=YR[i-1];r.d=p?{b:pct(r.b,p.b),mb:pct(r.moyB,p.moyB),n:pct(r.n,p.n),mn:pct(r.moy,p.moy),a:pct(r.ap,p.ap),ma:pct(r.moyAp,p.moyAp)}:null});
+ YR.forEach((r,i)=>{const p=YR[i-1];r.d=p?{b:pct(r.b,p.b),mb:pct(r.moyB,p.moyB),n:pct(r.n,p.n),mn:pct(r.moy,p.moy),a:pct(r.ap,p.ap),ma:pct(r.moyAp,p.moyAp),mi:pct(r.moyIm,p.moyIm)}:null});
  const emp={},ecn={};L.forEach(s=>{const k=s.employeur||"Non renseigné";emp[k]=(emp[k]||0)+s.net;ecn[k]=(ecn[k]||0)+1});
  const yr=salY==="all"?(ys[0]||cy):salY;
  /* Tableau compact par année : 5 lignes visibles puis défilement (même principe que les autres tableaux) */
- const yrT=`<div class="tw"><table class="rc"><thead><tr><th>Année</th><th>Brut</th><th>Net avant impôts</th><th>Impôt payé</th><th>Net après impôts</th><th>Moy. / mois après</th></tr></thead><tbody>${YR.slice().reverse().map(r=>{const d=r.d||{};return`<tr><th>${r.y}<div class="d">${r.c} vers.</div></th><td style="color:var(--violet);font-weight:700">${r.b>0?eur(r.b):"—"}</td><td style="color:var(--bleu);font-weight:700">${eur(r.n)}<div class="d">${dsp(d.n)}</div></td><td style="color:var(--orange);font-weight:700">${eur(r.im)}<div class="d">${rate(r.im,r.n)} du net</div></td><td class="pos">${eur(r.ap)}<div class="d">${dsp(d.a)}</div></td><td>${eur(r.moyAp)}<div class="d">${dsp(d.ma)}</div></td></tr>`}).join("")}</tbody></table></div><div class="d" style="margin-top:6px">Sous les montants : évolution par rapport à l'année précédente</div>`;
+ const ev=p=>p==null?"":` (<span class="${p>=0?"pos":"neg"}">${p>=0?"+":""}${p.toFixed(1).replace(".",",")} %</span>)`,evI=p=>p==null?"":` (<span class="${p>=0?"neg":"pos"}">${p>=0?"+":""}${p.toFixed(1).replace(".",",")} %</span>)`;
+ const yrT=`<div class="tw"><table class="rc"><thead><tr><th>Année</th><th>Brut</th><th>Net avant impôts</th><th>Impôt payé</th><th>Net après impôts</th></tr></thead><tbody>${YR.slice().reverse().map(r=>{const d=r.d||{};return`<tr><th>${r.y}<div class="d">${r.c} vers.</div></th><td style="color:var(--violet);font-weight:700">${r.b>0?eur(r.b):"—"}${r.b>0?`<div class="d">${eur(r.moyB)}/mois${ev(d.mb)}</div>`:""}</td><td style="color:var(--bleu);font-weight:700">${eur(r.n)}<div class="d">${eur(r.moy)}/mois${ev(d.mn)}</div></td><td style="color:var(--orange);font-weight:700">${eur(r.im)}<div class="d">${eur(r.moyIm)}/mois${evI(d.mi)}</div></td><td class="pos">${eur(r.ap)}<div class="d">${eur(r.moyAp)}/mois${ev(d.ma)}</div></td></tr>`}).join("")}</tbody></table></div><div class="d" style="margin-top:6px">Sous chaque total : moyenne mensuelle (calculée sur les mois réellement versés) et, entre parenthèses, son évolution par rapport à l'année précédente</div>`;
  const hist=L.slice().reverse().map(s=>`<div class="op" data-sal="${s.i}"><div class="m"><b>${esc(s.employeur)}</b><small>${fdy(s.date)} · ${esc(s.type)}${s.notes?` · ${esc(s.notes)}`:""}</small><div class="tri"><div style="--c:var(--violet)"><small>Brut</small><b>${s.brut>0?eur2(s.brut):"—"}</b></div><div style="--c:var(--bleu)"><small>Net av. impôts</small><b>${eur2(s.net)}</b></div><div style="--c:var(--orange)"><small>Impôt</small><b>${s.impot>0?"−"+eur2(s.impot):"0 €"}</b></div><div class="nt" style="--c:var(--vert)"><small>Net après</small><b>${eur2(s.net-(s.impot||0))}</b></div></div></div><span style="color:var(--mut)">✎</span></div>`).join("");
  return`<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée</div><label>Année</label><select id="sSel"><option value="all">Toutes les années</option>${ysel.map(y=>`<option value="${y}" ${y===salY?"selected":""}>${y}</option>`).join("")}</select></div>
  <div class="kpis k3"><div class="kpi" style="--c:var(--violet)"><span>Salaire brut</span><b>${brut>0?eur(brut):"—"}</b></div><div class="kpi" style="--c:var(--bleu)"><span>Net avant impôts</span><b>${eur(net)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Impôt payé</span><b>${eur(imp)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Net après impôts</span><b>${eur(net-imp)}</b></div>
