@@ -127,6 +127,8 @@ dialog [required]:invalid{border:2px solid var(--rouge)!important}
 dialog [required]:invalid:focus{outline:2px solid color-mix(in srgb,var(--rouge) 40%,transparent)}
 #iSeg{flex-wrap:wrap}#iSeg button{flex:1 1 calc(50% - 3px)}
 .mu{color:var(--mut)}
+.rc thead th[data-sc]{cursor:pointer}
+.so{font-size:.62rem;margin-left:3px;color:var(--bleu)}
 .lst .op.sel{background:color-mix(in srgb,var(--bleu) 16%,transparent)}
 .ck{font-size:1.15rem}
 .op[data-grp]{cursor:pointer}
@@ -244,13 +246,6 @@ g[data-tip]{cursor:pointer}
  <button type="button" class="sec hide" id="iDel" style="width:100%;color:var(--rouge)">🗑 Supprimer</button>
 </form></dialog>
 
-<dialog id="dlgG"><form method="dialog" id="frmG">
- <h3 style="margin:0 0 4px">Enregistrer dans un groupe</h3>
- <div class="d" id="gInfo" style="margin:0 0 6px"></div>
- <label>Groupe</label><select id="gSel"></select>
- <div id="gNewW"><label>Nom du nouveau groupe (ex. Voyage Italie)</label><input id="gNom" autocomplete="off"></div>
- <div class="row" style="margin-top:14px"><button type="button" class="sec" id="gCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
-</form></dialog>
 <dialog id="dlgA"><form method="dialog" id="frmA">
  <h3 id="aT" style="margin:0 0 4px">Ajouter au groupe</h3>
  <div class="d" id="aInfo" style="margin:0 0 6px"></div>
@@ -268,14 +263,16 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"],groupes:["Groupes","Groupe"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="26.5-b",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="26.6-a",KEY="depenses_v1",FKEY="depenses_fold";
 const TKEY="depenses_tab",TIDS=["home","ana","rec","cred","sal","tax","int","sante","data"];
 let D=load(),tab=loadTab(),per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
 function grpNames(){const used=[...new Set(D.depenses.map(o=>o.groupe).filter(Boolean))];let L=[...new Set((D.groupes||[]).map(g=>g&&g.nom!=null?g.nom:g).filter(n=>used.includes(n)))];
  used.filter(n=>!L.includes(n)).sort((a,b)=>a.localeCompare(b,"fr")).forEach(n=>L.push(n));D.groupes=L.map(nom=>({nom}));return L}
-function gmove(n,dir){const L=grpNames(),i=L.indexOf(n),j=i+dir;if(i<0||j<0||j>=L.length)return;[L[i],L[j]]=[L[j],L[i]];D.groupes=L.map(nom=>({nom}));save();render()}
+function gsetpos(n,pos){const L=grpNames(),i=L.indexOf(n);if(i<0)return;L.splice(i,1);const p=Math.min(Math.max(parseInt(pos)||i+1,1),L.length+1);L.splice(p-1,0,n);D.groupes=L.map(nom=>({nom}));save();render()}
+function assignGroup(name,idxs,pos){const L=grpNames(),isNew=!L.includes(name);idxs.forEach(i=>{if(D.depenses[i])D.depenses[i].groupe=name});
+ if(isNew){const p=Math.min(Math.max(parseInt(pos)||L.length+1,1),L.length+1);L.splice(p-1,0,name);D.groupes=L.map(nom=>({nom}))}save()}
 function save(){grpNames();try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){alert("Stockage impossible")}}
 function loadTab(){try{const t=localStorage.getItem(TKEY);return TIDS.includes(t)?t:"home"}catch(e){return"home"}}
 function saveTab(){try{localStorage.setItem(TKEY,tab)}catch(e){}}
@@ -422,8 +419,12 @@ function fixPer(){if(per.startsWith("m:")&&!months().includes(per.slice(2)))per=
 
 /* ---------- Onglet 1 : période + revenus/dépenses/solde + liste ---------- */
 function selSum(){let d=0,r=0,n=0;UI.sel.forEach(i=>{const o=D.depenses[i];if(!o)return;n++;if(isRev(o))r+=o.montant;else d+=o.montant});return{n,d,r}}
-function selHtml(){const s=selSum();return`<div class="kpis k3" style="margin-top:0"><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur2(s.d)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur2(s.r)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Coût net</span><b>${eur2(s.d-s.r)}</b></div></div>`}
+const cg=v=>v>0?{l:"Coût net",c:"orange",v}:v<0?{l:"Gain net",c:"vert",v:-v}:{l:"Coût net",c:"orange",v:0};
+const cgTxt=v=>v>0?"coût "+eur2(v):v<0?"gain "+eur2(-v):"0,00 €";
+function selHtml(){const s=selSum(),c=cg(s.d-s.r);return`<div class="kpis k3" style="margin-top:0"><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur2(s.d)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur2(s.r)}</b></div><div class="kpi" style="--c:var(--${c.c})"><span>${c.l}</span><b>${eur2(c.v)}</b></div></div>`}
 function refSel(){const b=$("#selBox"),t=$("#selT");if(b)b.innerHTML=selHtml();if(t)t.textContent=selSum().n}
+function curTgt(){return UI.gt||(UI.hg!=="all"?UI.hg:"__new")}
+function yearStats(g){const M={};D.depenses.forEach(o=>{if(o.groupe!==g||!o.date)return;const y=o.date.slice(0,4),x=M[y]??={y,d:0,r:0};if(isRev(o))x.r+=o.montant;else x.d+=o.montant});return Object.values(M).sort((a,b)=>a.y.localeCompare(b.y))}
 function vHome(){
  fixPer();
  const{a,b}=perRange(),used={};D.depenses.forEach(o=>{if(o.date)used[o.categorie]=1});
@@ -431,15 +432,28 @@ function vHome(){
  grs=grpNames();
  if(UI.scat!=="all"&&!used[UI.scat])UI.scat="all";
  if(UI.hg!=="all"&&!grs.includes(UI.hg))UI.hg="all";
+ if(UI.gt&&UI.gt!=="__new"&&!grs.includes(UI.gt))UI.gt="";
  const t=nrm(q.trim()),filt=!!t||UI.scat!=="all"||UI.hs!=="all"||UI.hg!=="all",sm=UI.selMode;
  /* Avec un groupe choisi, la période est ignorée : le groupe est affiché en entier */
  const L=D.depenses.map((o,i)=>({...o,i})).filter(o=>/^\d{4}-\d{2}-\d{2}$/.test(o.date||"")&&(UI.hg!=="all"?o.groupe===UI.hg:(o.date>=a&&o.date<=b))&&(UI.hs==="all"||(isRev(o)?"Revenu":"Dépense")===UI.hs)&&(UI.scat==="all"||o.categorie===UI.scat)&&(!t||nrm(o.libelle).includes(t))).sort((x,y)=>y.date.localeCompare(x.date));
- const r=L.filter(isRev).reduce((s,o)=>s+o.montant,0),d=L.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0);
- const GS=grs.map(g=>{const l=D.depenses.filter(o=>o.groupe===g),dd=l.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0),rr=l.filter(isRev).reduce((s,o)=>s+o.montant,0);return{g,n:l.length,d:dd,r:rr}});
- const selCard=sm?`<div class="card" style="margin-top:0"><div class="sh">🧳 Regrouper · <span id="selT">${selSum().n}</span> sélectionnée(s)</div><div class="d" style="margin:0 0 8px">Touche les opérations une à une : le coût total se met à jour. Les filtres et la recherche restent utilisables.</div><div id="selBox">${selHtml()}</div>
+ const r=L.filter(isRev).reduce((s,o)=>s+o.montant,0),d=L.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0),gk=cg(d-r);
+ const GS=grs.map((g,gi)=>{const l=D.depenses.filter(o=>o.groupe===g),dd=l.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0),rr=l.filter(isRev).reduce((s,o)=>s+o.montant,0);return{g,pos:gi+1,n:l.length,d:dd,r:rr,ys:yearStats(g)}});
+ const tgt=curTgt(),isNew=tgt==="__new";
+ /* Section : créer un groupe / ajouter des opérations à un groupe */
+ const crea=card("home-new","🧳 Créer un nouveau groupe / ajouter à un groupe",`<label>Groupe</label><select data-u="gt">${opt("__new","➕ Nouveau groupe",tgt)}${grs.map((g,i)=>opt(g,(i+1)+". "+g,tgt)).join("")}</select>
+ ${isNew?`<div class="row" style="margin:0"><div style="flex:2;min-width:0"><label>Nom du groupe (ex. Voyage Italie)</label><input data-s="gn" value="${esc(UI.gn)}" autocomplete="off"></div><div style="flex:1;min-width:0"><label>N° dans le tableau</label><input data-s="gp" type="number" min="1" step="1" inputmode="numeric" value="${esc(UI.gp||grs.length+1)}"></div></div>`:`<div class="d" style="margin-top:6px">Groupe n° ${grs.indexOf(tgt)+1} dans le tableau des groupes</div>`}
+ ${sm?`<div class="sh" style="margin-top:12px"><span id="selT">${selSum().n}</span> opération(s) sélectionnée(s)</div><div class="d" style="margin:0 0 8px">Touche les opérations dans la liste ci-dessus : le total se met à jour. Les filtres et la recherche restent utilisables.</div><div id="selBox">${selHtml()}</div>
   <div class="row" style="margin-top:10px"><button class="sec" id="selAll" style="flex:1">Tout sélectionner (liste)</button><button class="sec" id="selNone" style="flex:1">Tout désélectionner</button></div>
-  <div class="row"><button id="selSave" style="flex:2">Enregistrer le groupe…</button><button class="sec" id="selUn" style="flex:1">Retirer du groupe</button></div>
-  <button class="sec" id="selEnd" style="width:100%">Terminer</button></div>`:"";
+  <div class="row"><button id="selSave" style="flex:2">Enregistrer dans le groupe</button><button class="sec" id="selUn" style="flex:1">Retirer du groupe</button></div>
+  <button class="sec" id="selEnd" style="width:100%">Terminer la sélection</button>`
+ :`<button id="bGrp" style="width:100%;margin-top:12px">☑ Sélectionner des opérations dans la liste</button><button class="sec" id="bGAdd" style="width:100%;margin-top:8px">➕ Ajouter une opération oubliée (menu déroulant)</button>`}`);
+ /* Gestion du groupe affiché : position, renommer, dissoudre, coût / gain par année */
+ const ys=UI.hg!=="all"?yearStats(UI.hg):[];
+ const mg=UI.hg!=="all"?`<div class="card"><div class="sh">🧳 Groupe « ${esc(UI.hg)} »</div><label>N° dans le tableau des groupes</label><input id="gPos" type="number" min="1" step="1" inputmode="numeric" value="${grs.indexOf(UI.hg)+1}">
+ <div class="row" style="margin:10px 0 0"><button class="sec" id="gRen" style="flex:1">✎ Renommer</button><button class="sec" id="gDel" style="flex:1;color:var(--rouge)">Dissoudre</button></div>
+ ${ys.length>1?`<div class="sh" style="margin-top:12px">Coût / gain par année</div><div class="tw"><table class="rc" data-sk="gyr"><thead><tr><th>Année</th><th>Dépenses</th><th>Revenus</th><th>Coût / gain net</th></tr></thead><tbody>${ys.map(y=>{const v=y.d-y.r;return`<tr><th>${y.y}</th><td class="neg">${eur2(y.d)}</td><td class="pos">${eur2(y.r)}</td><td data-v="${v}" class="${v>0?"neg":"pos"}">${v>0?"Coût ":v<0?"Gain ":""}${eur2(Math.abs(v))}</td></tr>`}).join("")}<tr class="tot"><th>Total</th><td class="neg">${eur2(ys.reduce((a,y)=>a+y.d,0))}</td><td class="pos">${eur2(ys.reduce((a,y)=>a+y.r,0))}</td><td class="${ys.reduce((a,y)=>a+y.d-y.r,0)>0?"neg":"pos"}">${(v=>(v>0?"Coût ":v<0?"Gain ":"")+eur2(Math.abs(v)))(ys.reduce((a,y)=>a+y.d-y.r,0))}</td></tr></tbody></table></div>`:""}</div>`:"";
+ /* Tableau de tous les groupes */
+ const tbl=GS.length?`<div class="tw"><table class="rc" data-sk="grp"><thead><tr><th>N°</th><th>Groupe</th><th>Dépenses</th><th>Revenus</th><th>Coût / gain net</th></tr></thead><tbody>${GS.map(x=>{const v=x.d-x.r;return`<tr data-grp="${esc(x.g)}" style="cursor:pointer"><td data-v="${x.pos}"><b>${x.pos}</b></td><td style="text-align:left;white-space:normal;min-width:110px"><b>${esc(x.g)}</b><div class="d">${x.n} opération${x.n>1?"s":""}${x.ys.length>1?" · "+x.ys.map(y=>y.y+" : "+cgTxt(y.d-y.r)).join(" · "):""}</div></td><td data-v="${x.d}" class="neg">${eur2(x.d)}</td><td data-v="${x.r}" class="pos">${eur2(x.r)}</td><td data-v="${v}" class="${v>0?"neg":"pos"}">${v>0?"Coût ":v<0?"Gain ":""}${eur2(Math.abs(v))}</td></tr>`}).join("")}</tbody></table></div>`:'<div class="empty">Aucun groupe pour le moment</div>';
  return`<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée et recherche</div>
  <label>Période</label><select id="pSel">${perSel()}</select>
  <label>Rechercher (libellé)</label><input id="q" placeholder="🔍 Ex. coiffeur, pharmacie…" value="${esc(q)}" autocomplete="off">
@@ -450,13 +464,11 @@ function vHome(){
 </div>
  <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div>
  <div class="kpi wide" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div>
- ${UI.hg!=="all"?`<div class="kpi wide" style="--c:var(--orange)"><span>Coût net du groupe « ${esc(UI.hg)} »</span><b>${eur(d-r)}</b></div>`:""}</div>
+ ${UI.hg!=="all"?`<div class="kpi wide" style="--c:var(--${gk.c})"><span>${gk.l} du groupe « ${esc(UI.hg)} »</span><b>${eur(gk.v)}</b></div>`:""}</div>
  ${card("home-list",(UI.hg!=="all"?"Groupe « "+esc(UI.hg)+" » · ":"Opérations sur la période · ")+L.length,`<div class="lst">${L.length?L.map(o=>`<div class="op${sm&&UI.sel.has(o.i)?" sel":""}" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}${o.groupe?" · 🧳 "+esc(o.groupe):""}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span class="ck" style="color:var(--mut)">${sm?(UI.sel.has(o.i)?"☑":"☐"):"✎"}</span></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`,"margin-top:0")}
- ${sm?"":'<button id="bGrp" class="sec" style="width:100%;margin:0 0 12px">🧳 Regrouper des opérations (voyage, projet…)</button>'}
- ${selCard}
- ${sm?selCard:""}
- ${UI.hg!=="all"?'<div class="card"><div class="sh">🧳 Groupe « '+esc(UI.hg)+' »</div><button class="sec" id="bGAdd" style="width:100%;margin-top:10px">➕ Ajouter une opération (oubliée) à ce groupe</button><div class="row" style="margin:8px 0 0"><button class="sec" id="gRen" style="flex:1">✎ Renommer le groupe</button><button class="sec" id="gDel" style="flex:1;color:var(--rouge)">Dissoudre</button></div></div>':""}
- ${GS.length&&!sm?card("home-grp","🧳 Mes groupes · touche pour afficher · ▲▼ pour ordonner",`<div class="lst">${GS.map((x,gi)=>`<div class="op" data-grp="${esc(x.g)}"><div class="m"><b>${esc(x.g)}</b><small>${x.n} opération${x.n>1?"s":""} · dépenses ${eur(x.d)}${x.r>0?" · revenus "+eur(x.r):""}</small></div><span class="am neg">${eur2(x.d-x.r)}</span><span style="display:flex;flex-direction:column;gap:3px;flex:none;width:34px">${gi>0?`<button class="sec" data-gmv="${esc(x.g)}" data-gd="-1" style="padding:1px 0;font-size:.7rem">▲</button>`:""}${gi<GS.length-1?`<button class="sec" data-gmv="${esc(x.g)}" data-gd="1" style="padding:1px 0;font-size:.7rem">▼</button>`:""}</span></div>`).join("")}</div>`):""}`}
+ ${crea}
+ ${mg}
+ ${card("home-grp","🧳 Mes groupes · touche une ligne pour l'afficher · touche un titre pour trier",tbl)}`}
 
 /* ---------- Onglet 2 : analyse ---------- */
 function vAna(){
@@ -652,7 +664,7 @@ function vInt(){
  ${card("int-yr","Intéressement / participation / abondement / PPV par année",chart+`<div class="lst">${yrRows}</div>`)}
  ${card("int-hist","Historique · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-int="${s.i}"><div class="m"><b>${esc(s.type)}</b><small>${fdy(s.date)}${s.employeur?" · "+esc(s.employeur):""} · ${esc(s.dest||"")}${s.brut>0?" · brut "+eur2(s.brut):""}</small></div><span class="pos am">${eur2(s.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Nouveaux onglets : Recherche, Santé, Impôts ---------- */
-const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all",hs:"all",hPr:"o",hS:"n",hMon:null,hg:"all",selMode:false,sel:new Set()};
+const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all",hs:"all",hPr:"o",hS:"n",hMon:null,hg:"all",selMode:false,sel:new Set(),gt:"",gn:"",gp:"",addG:""};
 const nrm=s=>String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 const fp=v=>(+v.toFixed(1)+"").replace(".",",")+" %";
 const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?"selected":""}>${esc(l)}</option>`;
@@ -781,10 +793,22 @@ function fitLists(){
  document.querySelectorAll(".tw").forEach(w=>{w.style.maxHeight="";if(!w.offsetParent)return;const rows=w.querySelectorAll("tbody tr");if(rows.length<=5)return;
   w.style.maxHeight=(rows[5].getBoundingClientRect().top-w.getBoundingClientRect().top+w.scrollTop+1)+"px";
   let top=0;w.querySelectorAll("thead tr").forEach(tr=>{tr.querySelectorAll("th").forEach(th=>{th.style.position="sticky";th.style.top=top+"px";th.style.zIndex=3});top+=tr.offsetHeight})})}
+const SORTS={};
+const cellTxt=c=>{const n=c.firstChild;return((n?n.textContent:"")||c.textContent).trim()};
+function cellKey(c){if(c.dataset.v!==undefined)return parseFloat(c.dataset.v);const t=cellTxt(c),m=t.replace(/[\u00a0\u202f\s]/g,"").replace("−","-").match(/^-?\d+(?:[.,]\d+)?/);return m?parseFloat(m[0].replace(",",".")):t}
+function applySort(tb,key,ths){const s=SORTS[key];ths.forEach((th,c)=>{if(!th)return;const sp=th.querySelector(".so");if(sp)sp.textContent=s&&s.c===c?(s.d>0?"▲":"▼"):""});if(!s)return;
+ const bd=tb.tBodies[0],rows=[...bd.rows],fixed=rows.filter(r=>r.classList.contains("tot")),v=rows.filter(r=>!r.classList.contains("tot"));
+ v.sort((x,y)=>{const a=cellKey(x.cells[s.c]),b=cellKey(y.cells[s.c]),na=typeof a==="number"&&!isNaN(a),nb=typeof b==="number"&&!isNaN(b);let r=na&&nb?a-b:na?-1:nb?1:String(a).localeCompare(String(b),"fr");return r*s.d});
+ v.concat(fixed).forEach(r=>bd.appendChild(r))}
+function sortTables(){document.querySelectorAll("#app table.rc").forEach((tb,ti)=>{if(!tb.tHead||!tb.tBodies[0])return;const key=tb.dataset.sk||tab+":"+ti,hr=[...tb.tHead.rows],occ=hr.map(()=>[]),ths=[];
+ hr.forEach((tr,ri)=>{let c=0;[...tr.cells].forEach(th=>{while(occ[ri][c])c++;const cs=th.colSpan||1,rs=th.rowSpan||1;for(let i=0;i<rs;i++)for(let j=0;j<cs;j++)if(occ[ri+i])occ[ri+i][c+j]=1;if(cs===1)ths[c]=th;c+=cs})});
+ ths.forEach((th,c)=>{if(!th)return;th.setAttribute("data-sc","1");th.title="Trier cette colonne";if(!th.querySelector(".so"))th.insertAdjacentHTML("beforeend",'<span class="so"></span>');
+  th.onclick=()=>{const s=SORTS[key];SORTS[key]=s&&s.c===c?{c,d:-s.d}:{c,d:1};applySort(tb,key,ths);fitLists()}});
+ applySort(tb,key,ths)})}
 function render(){hideTip();const t=TABS.find(x=>x[0]===tab);$("#app").innerHTML=t[3]();
  const nv=$("#nav"),sl=nv.scrollLeft;nv.innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${x[0]===tab?"on":""}">${x[1]} ${x[2]}</button>`).join("");
  const on=nv.querySelector(".on");if(on)nv.scrollLeft=on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2;else nv.scrollLeft=sl;
- $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations";bind();$("#fab").style.display=["sante","tax","sal"].includes(tab)?"none":"";document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth});fitLists()}
+ $("#sub").textContent="v"+VER+" · "+D.depenses.length+" opérations";bind();sortTables();$("#fab").style.display=["sante","tax","sal"].includes(tab)?"none":"";document.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth});fitLists()}
 function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{if(b.dataset.t==="sal"&&tab!=="sal")salY=TODAY().slice(0,4);tab=b.dataset.t;saveTab();render();scrollTo(0,0)});
  document.querySelectorAll("[data-f]").forEach(h=>h.onclick=()=>{const c=h.parentElement,id=h.dataset.f;c.classList.toggle("fold");FOLD[id]=c.classList.contains("fold")?1:0;saveFold();hideTip();
   if(!FOLD[id]){c.querySelectorAll(".sc[data-end]").forEach(e=>{e.scrollLeft=e.scrollWidth})}fitLists()});
@@ -793,23 +817,23 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  const qi=$("#q");if(qi)qi.oninput=e=>{q=e.target.value.toLowerCase();const p=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(p,p)};
  document.querySelectorAll("[data-op]").forEach(b=>b.onclick=()=>{const i=+b.dataset.op;if(!UI.selMode)return openOp(i);
   UI.sel.has(i)?UI.sel.delete(i):UI.sel.add(i);b.classList.toggle("sel",UI.sel.has(i));const k=b.querySelector(".ck");if(k)k.textContent=UI.sel.has(i)?"☑":"☐";refSel()});
- document.querySelectorAll("[data-grp]").forEach(b=>b.onclick=()=>{UI.hg=b.dataset.grp;render();scrollTo(0,0)});
- document.querySelectorAll("[data-gmv]").forEach(b=>b.onclick=e=>{e.stopPropagation();gmove(b.dataset.gmv,+b.dataset.gd)});
+ document.querySelectorAll("[data-grp]").forEach(b=>b.onclick=()=>{UI.hg=b.dataset.grp;UI.gt="";render();scrollTo(0,0)});
  const g=(id,f)=>{const e=$(id);if(e)e.onclick=f};
- document.querySelectorAll("[data-u]").forEach(el=>{const k=el.dataset.u,f=()=>{UI[k]=el.type==="number"?(el.value===""?"":parseFloat(el.value)):el.value;if(k==="hAct"){UI.hPrix=null;UI.hMon=null}};
+ document.querySelectorAll("[data-u]").forEach(el=>{const k=el.dataset.u,f=()=>{UI[k]=el.type==="number"?(el.value===""?"":parseFloat(el.value)):el.value;if(k==="hAct"){UI.hPrix=null;UI.hMon=null}if(k==="hg")UI.gt=""};
   if(el.dataset.live)el.oninput=()=>{f();const p=el.selectionStart;render();const n=document.querySelector('[data-u="'+k+'"]');n.focus();try{n.setSelectionRange(p,p)}catch(e){}};else el.onchange=()=>{f();render()}});
  document.querySelectorAll("[data-d]").forEach(el=>el.onchange=()=>{const[a,b]=el.dataset.d.split(".");D[a]=D[a]||{};D[a][b]=el.type==="checkbox"?el.checked:(el.type==="number"?(el.value===""?0:parseFloat(el.value)):el.value);save();render()});
  document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>openAct(b.dataset.act));
  g("#sReset",()=>{q="";UI.scat="all";UI.hs="all";UI.hg="all";render()});
- g("#bGAdd",openAdd);
+ g("#bGAdd",()=>{const t=curTgt(),name=t==="__new"?(UI.gn||"").trim():t;if(!name)return alert("Saisis d'abord le nom du groupe.");openAdd(name)});
  g("#bGrp",()=>{UI.selMode=true;UI.sel=new Set();render()});
  g("#selEnd",()=>{UI.selMode=false;UI.sel=new Set();render()});
  g("#selNone",()=>{UI.sel=new Set();render()});
  g("#selAll",()=>{document.querySelectorAll("[data-op]").forEach(b=>UI.sel.add(+b.dataset.op));render()});
  g("#selUn",()=>{if(!UI.sel.size)return alert("Sélectionne d'abord des opérations.");UI.sel.forEach(i=>{if(D.depenses[i])delete D.depenses[i].groupe});save();UI.sel=new Set();render()});
- g("#selSave",()=>{if(!UI.sel.size)return alert("Sélectionne d'abord des opérations.");const s=selSum();$("#gInfo").textContent=s.n+" opération(s) · coût net "+eur2(s.d-s.r);$("#gNom").value="";
-  const gl=grpNames();$("#gSel").innerHTML='<option value="__new">➕ Nouveau groupe…</option>'+gl.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");$("#gSel").value=UI.hg!=="all"&&gl.includes(UI.hg)?UI.hg:"__new";
-  $("#gNewW").classList.toggle("hide",$("#gSel").value!=="__new");$("#dlgG").showModal()});
+ g("#selSave",()=>{if(!UI.sel.size)return alert("Sélectionne d'abord des opérations.");const t=curTgt(),name=t==="__new"?(UI.gn||"").trim():t;if(!name)return alert("Saisis un nom de groupe.");
+  assignGroup(name,[...UI.sel],UI.gp);UI.selMode=false;UI.sel=new Set();UI.hg=name;UI.gt="";UI.gn="";UI.gp="";render();scrollTo(0,0)});
+ document.querySelectorAll("[data-s]").forEach(el=>el.oninput=()=>{UI[el.dataset.s]=el.value});
+ const gpi=$("#gPos");if(gpi)gpi.onchange=()=>gsetpos(UI.hg,parseInt(gpi.value));
  g("#gRen",()=>{const n=(prompt("Nouveau nom du groupe :",UI.hg)||"").trim();if(!n||n===UI.hg)return;D.depenses.forEach(o=>{if(o.groupe===UI.hg)o.groupe=n});D.groupes=(D.groupes||[]).map(x=>x.nom===UI.hg?{nom:n}:x);UI.hg=n;save();render()});
  g("#gDel",()=>{if(confirm("Dissoudre le groupe « "+UI.hg+" » ? Les opérations sont conservées.")){D.depenses.forEach(o=>{if(o.groupe===UI.hg)delete o.groupe});UI.hg="all";save();render()}});
  const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
@@ -878,18 +902,14 @@ $("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";
  if(!confirm("Remplacer les données du téléphone par :\n"+log.join("\n")))return;
  D=nd;save();render();alert("Import terminé :\n"+log.join("\n"))};
 
-$("#gCancel").onclick=()=>$("#dlgG").close();
-$("#gSel").onchange=()=>$("#gNewW").classList.toggle("hide",$("#gSel").value!=="__new");
-$("#frmG").onsubmit=e=>{const v=$("#gSel").value,n=v==="__new"?$("#gNom").value.trim():v;if(!n){e.preventDefault();alert("Saisis un nom de groupe.");return}
- UI.sel.forEach(i=>{if(D.depenses[i])D.depenses[i].groupe=n});save();UI.selMode=false;UI.sel=new Set();UI.hg=n;render();scrollTo(0,0)};
 /* Ajouter une opération oubliée à un groupe : menu déroulant des opérations hors groupe */
-function aList(){const g=UI.hg,m=D.depenses.filter(o=>o.groupe===g&&o.date).map(o=>o.date),near=$("#aP").value==="near"&&m.length,lo=near?addD(m.reduce((x,y)=>x<y?x:y),-31):"",hi=near?addD(m.reduce((x,y)=>x>y?x:y),31):"",t=nrm($("#aQ").value.trim());
+function aList(){const g=UI.addG,m=D.depenses.filter(o=>o.groupe===g&&o.date).map(o=>o.date),near=$("#aP").value==="near"&&m.length,lo=near?addD(m.reduce((x,y)=>x<y?x:y),-31):"",hi=near?addD(m.reduce((x,y)=>x>y?x:y),31):"",t=nrm($("#aQ").value.trim());
  return D.depenses.map((o,i)=>({o,i})).filter(x=>x.o.date&&x.o.groupe!==g&&(!near||(x.o.date>=lo&&x.o.date<=hi))&&(!t||nrm(x.o.libelle).includes(t))).sort((a,b)=>b.o.date.localeCompare(a.o.date))}
 function aFill(){const L=aList(),sl=L.slice(0,300);$("#aSel").innerHTML=sl.length?sl.map(x=>`<option value="${x.i}">${esc(fdy(x.o.date)+" · "+x.o.libelle+" · "+(isRev(x.o)?"+":"−")+eur2(x.o.montant)+(x.o.groupe?" (🧳 "+x.o.groupe+")":""))}</option>`).join(""):'<option value="">Aucune opération trouvée</option>';
  $("#aAdd").disabled=!sl.length;$("#aInfo").textContent=L.length+" opération(s) disponible(s)"+(L.length>300?" · 300 affichées : affine la recherche":"")}
-function openAdd(){if(UI.hg==="all")return;$("#aT").textContent="Ajouter au groupe « "+UI.hg+" »";$("#aQ").value="";$("#aP").value="near";$("#aMsg").textContent="";aFill();$("#dlgA").showModal()}
+function openAdd(name){UI.addG=name;$("#aT").textContent="Ajouter au groupe « "+name+" »";$("#aQ").value="";$("#aP").value="near";$("#aMsg").textContent="";aFill();$("#dlgA").showModal()}
 $("#aQ").oninput=aFill;$("#aP").onchange=aFill;$("#frmA").onsubmit=e=>e.preventDefault();$("#aClose").onclick=()=>$("#dlgA").close();
-$("#aAdd").onclick=()=>{const i=parseInt($("#aSel").value);if(!(i>=0)||!D.depenses[i])return;const o=D.depenses[i];o.groupe=UI.hg;save();$("#aMsg").textContent="✔ Ajouté : "+o.libelle+" ("+eur2(o.montant)+")";aFill();render()};
+$("#aAdd").onclick=()=>{const i=parseInt($("#aSel").value);if(!(i>=0)||!D.depenses[i])return;const o=D.depenses[i];assignGroup(UI.addG,[i],UI.gp);UI.gt=UI.addG;UI.gn="";UI.gp="";$("#aMsg").textContent="✔ Ajouté : "+o.libelle+" ("+eur2(o.montant)+")";aFill();render()};
 /* Ajout d'une opération (un revenu « Salaire » crée aussi la ligne dans Suivi Salaire, reliée par « lien ») */
 const dlg=$("#dlg");let oIdx=-1,oAllow=true,oLink=null,salOn=false;
 function catsFor(s){return CATS.filter(c=>REV.includes(c)===(s==="Revenu"))}
