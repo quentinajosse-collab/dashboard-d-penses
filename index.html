@@ -129,6 +129,7 @@ dialog [required]:invalid:focus{outline:2px solid color-mix(in srgb,var(--rouge)
 .mu{color:var(--mut)}
 .lst .op.sel{background:color-mix(in srgb,var(--bleu) 16%,transparent)}
 .ck{font-size:1.15rem}
+.op[data-grp]{cursor:pointer}
 .yc{border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden;background:var(--card)}
 .yc h4{margin:0;padding:9px 12px;display:flex;justify-content:space-between;align-items:baseline;background:color-mix(in srgb,var(--mut) 9%,var(--card));font-size:1.05rem;font-weight:800}
 .yc h4 small{font-size:.7rem;color:var(--mut);font-weight:600}
@@ -164,6 +165,7 @@ g[data-tip]{cursor:pointer}
  <datalist id="libs"></datalist>
  <div id="fMtW"><label>Montant (€)</label><input id="fMt" type="number" step="0.01" min="0.01" inputmode="decimal" required></div>
  <label>Catégorie</label><select id="fCat"></select>
+ <div id="fGrpW"><label>Groupe (voyage, projet…)</label><select id="fGrp"></select></div>
  <label>Date</label><input id="fDate" type="date" required>
  <div id="fSalW" class="hide">
   <label>Employeur</label><input id="fEmp" autocomplete="off" list="emps2"><datalist id="emps2"></datalist>
@@ -243,11 +245,20 @@ g[data-tip]{cursor:pointer}
 </form></dialog>
 
 <dialog id="dlgG"><form method="dialog" id="frmG">
- <h3 style="margin:0 0 4px">Enregistrer le groupe</h3>
+ <h3 style="margin:0 0 4px">Enregistrer dans un groupe</h3>
  <div class="d" id="gInfo" style="margin:0 0 6px"></div>
- <label>Nom du groupe (ex. Voyage Italie)</label><input id="gNom" required autocomplete="off" list="gLst"><datalist id="gLst"></datalist>
- <div class="rqn">Choisis un nom existant pour ajouter à un groupe déjà créé.</div>
+ <label>Groupe</label><select id="gSel"></select>
+ <div id="gNewW"><label>Nom du nouveau groupe (ex. Voyage Italie)</label><input id="gNom" autocomplete="off"></div>
  <div class="row" style="margin-top:14px"><button type="button" class="sec" id="gCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
+</form></dialog>
+<dialog id="dlgA"><form method="dialog" id="frmA">
+ <h3 id="aT" style="margin:0 0 4px">Ajouter au groupe</h3>
+ <div class="d" id="aInfo" style="margin:0 0 6px"></div>
+ <label>Rechercher (libellé)</label><input id="aQ" autocomplete="off" placeholder="🔍 Ex. péage, restaurant…">
+ <label>Période</label><select id="aP"><option value="near">Autour du groupe (± 1 mois)</option><option value="all">Tout l'historique</option></select>
+ <label>Opération à ajouter</label><select id="aSel"></select>
+ <div class="d" id="aMsg" style="margin-top:6px"></div>
+ <div class="row" style="margin-top:14px"><button type="button" class="sec" id="aClose" style="flex:1">Fermer</button><button type="button" id="aAdd" style="flex:2">Ajouter au groupe</button></div>
 </form></dialog>
 <input type="file" id="file" accept=".json,.xml,.xlsx,.xlsm" multiple class="hide">
 <script>
@@ -255,14 +266,17 @@ g[data-tip]{cursor:pointer}
 const CATS=["Salaire","Prime / Remboursement","Virement reçu","Logement","Énergie & Charges","Assurances","Courses & Nourriture","Restaurants & Sorties","Transport & Carburant","Voiture (entretien/assurance)","Santé","Vêtements & Shopping","Loisirs & Abonnements","Voyages","Cadeaux","Impôts","Crédit","Frais bancaires","Retrait espèces","Virement émis","Divers"];
 const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
-const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"]};
+const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"],groupes:["Groupes","Groupe"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="26.4-c",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="26.5-a",KEY="depenses_v1",FKEY="depenses_fold";
 const TKEY="depenses_tab",TIDS=["home","ana","rec","cred","sal","tax","int","sante","data"];
 let D=load(),tab=loadTab(),per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.depenses)return r}catch(e){}return{version:1,depenses:[],recurrentes:[],salaires:[],prets:[]}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){alert("Stockage impossible")}}
+function grpNames(){const used=[...new Set(D.depenses.map(o=>o.groupe).filter(Boolean))];let L=[...new Set((D.groupes||[]).map(g=>g&&g.nom!=null?g.nom:g).filter(n=>used.includes(n)))];
+ used.filter(n=>!L.includes(n)).sort((a,b)=>a.localeCompare(b,"fr")).forEach(n=>L.push(n));D.groupes=L.map(nom=>({nom}));return L}
+function gmove(n,dir){const L=grpNames(),i=L.indexOf(n),j=i+dir;if(i<0||j<0||j>=L.length)return;[L[i],L[j]]=[L[j],L[i]];D.groupes=L.map(nom=>({nom}));save();render()}
+function save(){grpNames();try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){alert("Stockage impossible")}}
 function loadTab(){try{const t=localStorage.getItem(TKEY);return TIDS.includes(t)?t:"home"}catch(e){return"home"}}
 function saveTab(){try{localStorage.setItem(TKEY,tab)}catch(e){}}
 function saveFold(){try{localStorage.setItem(FKEY,JSON.stringify(FOLD))}catch(e){}}
@@ -414,7 +428,7 @@ function vHome(){
  fixPer();
  const{a,b}=perRange(),used={};D.depenses.forEach(o=>{if(o.date)used[o.categorie]=1});
  const cats=Object.keys(used).sort((x,y)=>x.localeCompare(y,"fr")),
- grs=[...new Set(D.depenses.map(o=>o.groupe).filter(Boolean))].sort((x,y)=>x.localeCompare(y,"fr"));
+ grs=grpNames();
  if(UI.scat!=="all"&&!used[UI.scat])UI.scat="all";
  if(UI.hg!=="all"&&!grs.includes(UI.hg))UI.hg="all";
  const t=nrm(q.trim()),filt=!!t||UI.scat!=="all"||UI.hs!=="all"||UI.hg!=="all",sm=UI.selMode;
@@ -433,14 +447,14 @@ function vHome(){
  <div style="flex:1;min-width:0"><label>Type</label><select data-u="hs">${opt("all","Les deux",UI.hs)}${opt("Dépense","Dépenses",UI.hs)}${opt("Revenu","Revenus",UI.hs)}</select></div></div>
  ${grs.length?`<label>Groupe</label><select data-u="hg"><option value="all">Tous (selon la période)</option>${grs.map(g=>opt(g,"🧳 "+g,UI.hg)).join("")}</select>`:""}
  ${filt?'<button class="sec" id="sReset" style="width:100%;margin-top:10px">↺ Réinitialiser la recherche</button>':""}
- ${UI.hg!=="all"?'<div class="row" style="margin:10px 0 0"><button class="sec" id="gRen" style="flex:1">✎ Renommer le groupe</button><button class="sec" id="gDel" style="flex:1;color:var(--rouge)">Dissoudre</button></div>':""}</div>
+ ${UI.hg!=="all"?'<button class="sec" id="bGAdd" style="width:100%;margin-top:10px">➕ Ajouter une opération (oubliée) à ce groupe</button><div class="row" style="margin:8px 0 0"><button class="sec" id="gRen" style="flex:1">✎ Renommer le groupe</button><button class="sec" id="gDel" style="flex:1;color:var(--rouge)">Dissoudre</button></div>':""}</div>
  <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div>
  <div class="kpi wide" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div>
  ${UI.hg!=="all"?`<div class="kpi wide" style="--c:var(--orange)"><span>Coût net du groupe « ${esc(UI.hg)} »</span><b>${eur(d-r)}</b></div>`:""}</div>
  ${sm?"":'<button id="bGrp" class="sec" style="width:100%;margin-bottom:12px">🧳 Regrouper des opérations (voyage, projet…)</button>'}
  ${selCard}
  ${card("home-list",(UI.hg!=="all"?"Groupe « "+esc(UI.hg)+" » · ":"Opérations sur la période · ")+L.length,`<div class="lst">${L.length?L.map(o=>`<div class="op${sm&&UI.sel.has(o.i)?" sel":""}" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}${o.groupe?" · 🧳 "+esc(o.groupe):""}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span class="ck" style="color:var(--mut)">${sm?(UI.sel.has(o.i)?"☑":"☐"):"✎"}</span></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`,"margin-top:0")}
- ${GS.length&&!sm?card("home-grp","🧳 Mes groupes · touche pour afficher",`<div class="lst">${GS.map(x=>`<div class="op" data-grp="${esc(x.g)}"><div class="m"><b>${esc(x.g)}</b><small>${x.n} opération${x.n>1?"s":""} · dépenses ${eur(x.d)}${x.r>0?" · revenus "+eur(x.r):""}</small></div><span class="am neg">${eur2(x.d-x.r)}</span></div>`).join("")}</div>`):""}`}
+ ${GS.length&&!sm?card("home-grp","🧳 Mes groupes · touche pour afficher · ▲▼ pour ordonner",`<div class="lst">${GS.map((x,gi)=>`<div class="op" data-grp="${esc(x.g)}"><div class="m"><b>${esc(x.g)}</b><small>${x.n} opération${x.n>1?"s":""} · dépenses ${eur(x.d)}${x.r>0?" · revenus "+eur(x.r):""}</small></div><span class="am neg">${eur2(x.d-x.r)}</span><span style="display:flex;flex-direction:column;gap:3px;flex:none;width:34px">${gi>0?`<button class="sec" data-gmv="${esc(x.g)}" data-gd="-1" style="padding:1px 0;font-size:.7rem">▲</button>`:""}${gi<GS.length-1?`<button class="sec" data-gmv="${esc(x.g)}" data-gd="1" style="padding:1px 0;font-size:.7rem">▼</button>`:""}</span></div>`).join("")}</div>`):""}`}
 
 /* ---------- Onglet 2 : analyse ---------- */
 function vAna(){
@@ -512,8 +526,8 @@ function cashflow(L){
 /* ---------- Dépenses récurrentes (modifiables sur le téléphone) ---------- */
 function vRec(){const R=D.recurrentes,c=R.filter(r=>r.type==="Charge").reduce((a,r)=>a+r.montant,0),v=R.filter(r=>r.type==="Revenu").reduce((a,r)=>a+r.montant,0);
  return`<button id="bAddRec" style="width:100%;margin-bottom:12px">➕ Ajouter une récurrence</button>
- <div class="kpis"><div class="kpi" style="--c:var(--rouge)"><span>Charges / mois</span><b>${eur(c)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenus / mois</span><b>${eur(v)}</b></div>
- <div class="kpi" style="--c:var(--bleu)"><span>Solde / mois</span><b>${eur(v-c)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Charges / an</span><b>${eur(c*12)}</b></div></div>
+ <div class="kpis"><div class="kpi" style="--c:var(--rouge)"><span>Charges / mois</span><b>${eur2(c)}</b></div><div class="kpi" style="--c:var(--vert)"><span>Revenus / mois</span><b>${eur2(v)}</b></div>
+ <div class="kpi" style="--c:var(--bleu)"><span>Solde / mois</span><b>${eur2(v-c)}</b></div><div class="kpi" style="--c:var(--orange)"><span>Charges / an</span><b>${eur2(c*12)}</b></div></div>
  ${card("rec-list","Récurrentes · touche une ligne pour la modifier",`<div class="lst">${R.length?R.map((r,i)=>`<div class="op" data-rec="${i}"><div class="m"><b>${esc(r.libelle)}</b><small>${esc(r.categorie||"")} · ${r.type==="Revenu"?"Revenu":"Charge"}</small></div><span class="am ${r.type==="Revenu"?"pos":"neg"}">${eur2(r.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join(""):'<div class="empty">Aucune récurrence</div>'}</div>`)}`}
 
 /* ---------- Suivi crédit (tous les prêts regroupés) ---------- */
@@ -778,20 +792,23 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  document.querySelectorAll("[data-op]").forEach(b=>b.onclick=()=>{const i=+b.dataset.op;if(!UI.selMode)return openOp(i);
   UI.sel.has(i)?UI.sel.delete(i):UI.sel.add(i);b.classList.toggle("sel",UI.sel.has(i));const k=b.querySelector(".ck");if(k)k.textContent=UI.sel.has(i)?"☑":"☐";refSel()});
  document.querySelectorAll("[data-grp]").forEach(b=>b.onclick=()=>{UI.hg=b.dataset.grp;render();scrollTo(0,0)});
+ document.querySelectorAll("[data-gmv]").forEach(b=>b.onclick=e=>{e.stopPropagation();gmove(b.dataset.gmv,+b.dataset.gd)});
  const g=(id,f)=>{const e=$(id);if(e)e.onclick=f};
  document.querySelectorAll("[data-u]").forEach(el=>{const k=el.dataset.u,f=()=>{UI[k]=el.type==="number"?(el.value===""?"":parseFloat(el.value)):el.value;if(k==="hAct"){UI.hPrix=null;UI.hMon=null}};
   if(el.dataset.live)el.oninput=()=>{f();const p=el.selectionStart;render();const n=document.querySelector('[data-u="'+k+'"]');n.focus();try{n.setSelectionRange(p,p)}catch(e){}};else el.onchange=()=>{f();render()}});
  document.querySelectorAll("[data-d]").forEach(el=>el.onchange=()=>{const[a,b]=el.dataset.d.split(".");D[a]=D[a]||{};D[a][b]=el.type==="checkbox"?el.checked:(el.type==="number"?(el.value===""?0:parseFloat(el.value)):el.value);save();render()});
  document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>openAct(b.dataset.act));
  g("#sReset",()=>{q="";UI.scat="all";UI.hs="all";UI.hg="all";render()});
+ g("#bGAdd",openAdd);
  g("#bGrp",()=>{UI.selMode=true;UI.sel=new Set();render()});
  g("#selEnd",()=>{UI.selMode=false;UI.sel=new Set();render()});
  g("#selNone",()=>{UI.sel=new Set();render()});
  g("#selAll",()=>{document.querySelectorAll("[data-op]").forEach(b=>UI.sel.add(+b.dataset.op));render()});
  g("#selUn",()=>{if(!UI.sel.size)return alert("Sélectionne d'abord des opérations.");UI.sel.forEach(i=>{if(D.depenses[i])delete D.depenses[i].groupe});save();UI.sel=new Set();render()});
- g("#selSave",()=>{if(!UI.sel.size)return alert("Sélectionne d'abord des opérations.");const s=selSum();$("#gInfo").textContent=s.n+" opération(s) · coût net "+eur2(s.d-s.r);$("#gNom").value=UI.hg!=="all"?UI.hg:"";
-  $("#gLst").innerHTML=[...new Set(D.depenses.map(o=>o.groupe).filter(Boolean))].map(x=>`<option value="${esc(x)}">`).join("");$("#dlgG").showModal()});
- g("#gRen",()=>{const n=(prompt("Nouveau nom du groupe :",UI.hg)||"").trim();if(!n||n===UI.hg)return;D.depenses.forEach(o=>{if(o.groupe===UI.hg)o.groupe=n});UI.hg=n;save();render()});
+ g("#selSave",()=>{if(!UI.sel.size)return alert("Sélectionne d'abord des opérations.");const s=selSum();$("#gInfo").textContent=s.n+" opération(s) · coût net "+eur2(s.d-s.r);$("#gNom").value="";
+  const gl=grpNames();$("#gSel").innerHTML='<option value="__new">➕ Nouveau groupe…</option>'+gl.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");$("#gSel").value=UI.hg!=="all"&&gl.includes(UI.hg)?UI.hg:"__new";
+  $("#gNewW").classList.toggle("hide",$("#gSel").value!=="__new");$("#dlgG").showModal()});
+ g("#gRen",()=>{const n=(prompt("Nouveau nom du groupe :",UI.hg)||"").trim();if(!n||n===UI.hg)return;D.depenses.forEach(o=>{if(o.groupe===UI.hg)o.groupe=n});D.groupes=(D.groupes||[]).map(x=>x.nom===UI.hg?{nom:n}:x);UI.hg=n;save();render()});
  g("#gDel",()=>{if(confirm("Dissoudre le groupe « "+UI.hg+" » ? Les opérations sont conservées.")){D.depenses.forEach(o=>{if(o.groupe===UI.hg)delete o.groupe});UI.hg="all";save();render()}});
  const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
  
@@ -813,9 +830,10 @@ function toXml(p){let s=`<?xml version="1.0" encoding="utf-8"?>\n<ExportDepenses
 function fromXml(raw){const doc=new DOMParser().parseFromString(raw,"application/xml");if(doc.querySelector("parsererror"))throw new Error("XML invalide");
  const p={version:1,exporte_le:doc.documentElement.getAttribute("exporte_le")||""};
  for(const[k,[par,ch]]of Object.entries(SEC)){p[k]=[...doc.querySelectorAll(`${par} > ${ch}`)].map(el=>{const r={};for(const a of el.attributes){r[a.name]=NUM.has(a.name)?(parseFloat(a.value)||0):a.value}return r})}return p}
-function toCsv(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"';return"\uFEFFDate;Libelle;Categorie;Montant;Sens\n"+D.depenses.map(o=>[o.date,q(o.libelle),q(o.categorie),String(o.montant).replace(".",","),o.sens].join(";")).join("\n")}
+function toCsv(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"';return"\uFEFFDate;Libelle;Categorie;Montant;Sens;Groupe\n"+D.depenses.map(o=>[o.date,q(o.libelle),q(o.categorie),String(o.montant).replace(".",","),o.sens,q(o.groupe||"")].join(";")).join("\n")}
 function norm(p){const n=x=>parseFloat(x)||0;
  return{sante:p.sante,fisc:p.fisc,version:1,exporte_le:p.exporte_le||"",
+ groupes:p.groupes?p.groupes.map(g=>({nom:String(g&&g.nom!=null?g.nom:g)})).filter(g=>g.nom):undefined,
  depenses:(p.depenses||[]).filter(o=>o.date).map(o=>({date:String(o.date).slice(0,10),libelle:String(o.libelle??""),categorie:String(o.categorie??"Divers"),montant:n(o.montant),sens:o.sens||(REV.includes(o.categorie)?"Revenu":"Dépense"),...(o.lien?{lien:String(o.lien)}:{}),...(o.groupe?{groupe:String(o.groupe)}:{})})),
  recurrentes:(p.recurrentes||[]).map(r=>({libelle:String(r.libelle??""),categorie:String(r.categorie??""),montant:n(r.montant),type:r.type||"Charge"})),
  interessement:p.interessement?p.interessement.map(s=>({date:String(s.date||"").slice(0,10),type:String(s.type||"Intéressement"),montant:n(s.montant),brut:n(s.brut),dest:String(s.dest||""),employeur:String(s.employeur||"")})):undefined,
@@ -859,8 +877,17 @@ $("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";
  D=nd;save();render();alert("Import terminé :\n"+log.join("\n"))};
 
 $("#gCancel").onclick=()=>$("#dlgG").close();
-$("#frmG").onsubmit=e=>{const n=$("#gNom").value.trim();if(!n){e.preventDefault();return}
+$("#gSel").onchange=()=>$("#gNewW").classList.toggle("hide",$("#gSel").value!=="__new");
+$("#frmG").onsubmit=e=>{const v=$("#gSel").value,n=v==="__new"?$("#gNom").value.trim():v;if(!n){e.preventDefault();alert("Saisis un nom de groupe.");return}
  UI.sel.forEach(i=>{if(D.depenses[i])D.depenses[i].groupe=n});save();UI.selMode=false;UI.sel=new Set();UI.hg=n;render();scrollTo(0,0)};
+/* Ajouter une opération oubliée à un groupe : menu déroulant des opérations hors groupe */
+function aList(){const g=UI.hg,m=D.depenses.filter(o=>o.groupe===g&&o.date).map(o=>o.date),near=$("#aP").value==="near"&&m.length,lo=near?addD(m.reduce((x,y)=>x<y?x:y),-31):"",hi=near?addD(m.reduce((x,y)=>x>y?x:y),31):"",t=nrm($("#aQ").value.trim());
+ return D.depenses.map((o,i)=>({o,i})).filter(x=>x.o.date&&x.o.groupe!==g&&(!near||(x.o.date>=lo&&x.o.date<=hi))&&(!t||nrm(x.o.libelle).includes(t))).sort((a,b)=>b.o.date.localeCompare(a.o.date))}
+function aFill(){const L=aList(),sl=L.slice(0,300);$("#aSel").innerHTML=sl.length?sl.map(x=>`<option value="${x.i}">${esc(fdy(x.o.date)+" · "+x.o.libelle+" · "+(isRev(x.o)?"+":"−")+eur2(x.o.montant)+(x.o.groupe?" (🧳 "+x.o.groupe+")":""))}</option>`).join(""):'<option value="">Aucune opération trouvée</option>';
+ $("#aAdd").disabled=!sl.length;$("#aInfo").textContent=L.length+" opération(s) disponible(s)"+(L.length>300?" · 300 affichées : affine la recherche":"")}
+function openAdd(){if(UI.hg==="all")return;$("#aT").textContent="Ajouter au groupe « "+UI.hg+" »";$("#aQ").value="";$("#aP").value="near";$("#aMsg").textContent="";aFill();$("#dlgA").showModal()}
+$("#aQ").oninput=aFill;$("#aP").onchange=aFill;$("#frmA").onsubmit=e=>e.preventDefault();$("#aClose").onclick=()=>$("#dlgA").close();
+$("#aAdd").onclick=()=>{const i=parseInt($("#aSel").value);if(!(i>=0)||!D.depenses[i])return;const o=D.depenses[i];o.groupe=UI.hg;save();$("#aMsg").textContent="✔ Ajouté : "+o.libelle+" ("+eur2(o.montant)+")";aFill();render()};
 /* Ajout d'une opération (un revenu « Salaire » crée aussi la ligne dans Suivi Salaire, reliée par « lien ») */
 const dlg=$("#dlg");let oIdx=-1,oAllow=true,oLink=null,salOn=false;
 function catsFor(s){return CATS.filter(c=>REV.includes(c)===(s==="Revenu"))}
@@ -873,7 +900,8 @@ function syncSal(){const on=!!(oAllow&&sens==="Revenu"&&$("#fCat").value==="Sala
   $("#emps2").innerHTML=[...new Set(D.salaires.map(x=>x.employeur).filter(Boolean))].map(l=>`<option value="${esc(l)}">`).join("")}
  salOn=on;updA()}
 function setSens(s){sens=s;$("#sD").style.outline=s==="Dépense"?"2px solid var(--bleu)":"none";$("#sR").style.outline=s==="Revenu"?"2px solid var(--bleu)":"none";$("#fCat").innerHTML=catsFor(s).map(c=>`<option>${esc(c)}</option>`).join("");syncSal()}
-$("#fab").onclick=()=>{if(tab==="int")return openInt(-1);if(tab==="cred")return openPret(-1);if(tab==="rec")return openRec(-1);oIdx=-1;oAllow=true;oLink=null;salOn=false;$("#opTitle").textContent="Nouvelle opération";$("#fDel").classList.add("hide");$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");
+function fillGrp(cur){const L=grpNames();$("#fGrpW").classList.toggle("hide",!L.length);$("#fGrp").innerHTML='<option value="">— Aucun —</option>'+L.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");$("#fGrp").value=cur&&L.includes(cur)?cur:""}
+$("#fab").onclick=()=>{if(tab==="int")return openInt(-1);if(tab==="cred")return openPret(-1);if(tab==="rec")return openRec(-1);oIdx=-1;oAllow=true;oLink=null;salOn=false;$("#opTitle").textContent="Nouvelle opération";$("#fDel").classList.add("hide");$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");fillGrp(UI.hg!=="all"?UI.hg:"");
  $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(o=>o.libelle))].map(l=>`<option value="${esc(l)}">`).join("");dlg.showModal()};
 $("#sD").onclick=()=>setSens("Dépense");$("#sR").onclick=()=>setSens("Revenu");$("#fCancel").onclick=()=>dlg.close();
 $("#fCat").onchange=syncSal;$("#fNet").oninput=updA;$("#fImp").oninput=updA;
@@ -895,6 +923,7 @@ $("#frm").onsubmit=e=>{const on=!!(oAllow&&sens==="Revenu"&&$("#fCat").value==="
     D.salaires=D.salaires.filter(x=>x.lien!==old.lien);const nw={...old,...o};delete nw.lien;D.depenses[oIdx]=nw}
    else D.depenses[oIdx]={...old,...o}}
   else D.depenses.push(o)}
+ {const gi=oIdx>=0?oIdx:D.depenses.length-1,gv=$("#fGrp").value;if(D.depenses[gi]){if(gv)D.depenses[gi].groupe=gv;else delete D.depenses[gi].groupe}}
  save();per="m:"+date.slice(0,7);render()};
 function openOp(i){oIdx=i;const o=D.depenses[i];oAllow=!!o.lien;oLink=o.lien||null;salOn=false;$("#frm").reset();$("#opTitle").textContent="Modifier l'opération";setSens(isRev(o)?"Revenu":"Dépense");
  $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(x=>x.libelle))].map(l=>`<option value="${esc(l)}">`).join("");
@@ -902,7 +931,7 @@ function openOp(i){oIdx=i;const o=D.depenses[i];oAllow=!!o.lien;oLink=o.lien||nu
  if(o.categorie&&![...$("#fCat").options].some(x=>x.value===o.categorie))$("#fCat").insertAdjacentHTML("beforeend",`<option>${esc(o.categorie)}</option>`);
  $("#fCat").value=o.categorie;$("#fDate").value=o.date;
  if(o.lien){const s=D.salaires.find(x=>x.lien===o.lien);$("#fEmp").value=s?s.employeur:"";$("#fBrut").value=s&&s.brut!=null?s.brut:"";$("#fNet").value=s?s.net:o.montant;$("#fImp").value=s&&s.impot?s.impot:""}
- $("#fDel").classList.remove("hide");syncSal();dlg.showModal()}
+ $("#fDel").classList.remove("hide");fillGrp(o.groupe);syncSal();dlg.showModal()}
 $("#fDel").onclick=()=>{if(oIdx<0)return;const o=D.depenses[oIdx];
  if(confirm(o.lien?"Supprimer cette opération et le salaire lié dans Suivi Salaire ?":"Supprimer cette opération ?")){if(o.lien)D.salaires=D.salaires.filter(x=>x.lien!==o.lien);D.depenses.splice(oIdx,1);save();dlg.close();render()}};
 /* Ajout / modification d'un salaire */
