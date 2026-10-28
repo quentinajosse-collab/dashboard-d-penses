@@ -268,7 +268,7 @@ const REV=["Salaire","Prime / Remboursement","Virement reçu"];
 const PAL=["#0284c7","#7c3aed","#0d9488","#f97316","#dc2626","#ca8a04","#db2777","#4f46e5","#059669","#ea580c","#0891b2","#9333ea"];
 const SEC={depenses:["Depenses","Depense"],recurrentes:["Recurrentes","Recurrente"],salaires:["Salaires","Salaire"],prets:["Prets","Pret"],interessement:["Interessements","Interessement"],groupes:["Groupes","Groupe"]};
 const NUM=new Set(["montant","net","brut","impot","capital","taux","duree","assurance","premiere_reelle"]);
-const VER="26.5-a",KEY="depenses_v1",FKEY="depenses_fold";
+const VER="26.5-b",KEY="depenses_v1",FKEY="depenses_fold";
 const TKEY="depenses_tab",TIDS=["home","ana","rec","cred","sal","tax","int","sante","data"];
 let D=load(),tab=loadTab(),per="m:"+TODAY().slice(0,7),gran="jour",q="",sens="Dépense";
 let FOLD=(()=>{try{return JSON.parse(localStorage.getItem(FKEY))||{}}catch(e){return{}}})();
@@ -447,13 +447,15 @@ function vHome(){
  <div style="flex:1;min-width:0"><label>Type</label><select data-u="hs">${opt("all","Les deux",UI.hs)}${opt("Dépense","Dépenses",UI.hs)}${opt("Revenu","Revenus",UI.hs)}</select></div></div>
  ${grs.length?`<label>Groupe</label><select data-u="hg"><option value="all">Tous (selon la période)</option>${grs.map(g=>opt(g,"🧳 "+g,UI.hg)).join("")}</select>`:""}
  ${filt?'<button class="sec" id="sReset" style="width:100%;margin-top:10px">↺ Réinitialiser la recherche</button>':""}
- ${UI.hg!=="all"?'<button class="sec" id="bGAdd" style="width:100%;margin-top:10px">➕ Ajouter une opération (oubliée) à ce groupe</button><div class="row" style="margin:8px 0 0"><button class="sec" id="gRen" style="flex:1">✎ Renommer le groupe</button><button class="sec" id="gDel" style="flex:1;color:var(--rouge)">Dissoudre</button></div>':""}</div>
+</div>
  <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div>
  <div class="kpi wide" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div>
  ${UI.hg!=="all"?`<div class="kpi wide" style="--c:var(--orange)"><span>Coût net du groupe « ${esc(UI.hg)} »</span><b>${eur(d-r)}</b></div>`:""}</div>
- ${sm?"":'<button id="bGrp" class="sec" style="width:100%;margin-bottom:12px">🧳 Regrouper des opérations (voyage, projet…)</button>'}
- ${selCard}
  ${card("home-list",(UI.hg!=="all"?"Groupe « "+esc(UI.hg)+" » · ":"Opérations sur la période · ")+L.length,`<div class="lst">${L.length?L.map(o=>`<div class="op${sm&&UI.sel.has(o.i)?" sel":""}" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}${o.groupe?" · 🧳 "+esc(o.groupe):""}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span class="ck" style="color:var(--mut)">${sm?(UI.sel.has(o.i)?"☑":"☐"):"✎"}</span></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`,"margin-top:0")}
+ ${sm?"":'<button id="bGrp" class="sec" style="width:100%;margin:0 0 12px">🧳 Regrouper des opérations (voyage, projet…)</button>'}
+ ${selCard}
+ ${sm?selCard:""}
+ ${UI.hg!=="all"?'<div class="card"><div class="sh">🧳 Groupe « '+esc(UI.hg)+' »</div><button class="sec" id="bGAdd" style="width:100%;margin-top:10px">➕ Ajouter une opération (oubliée) à ce groupe</button><div class="row" style="margin:8px 0 0"><button class="sec" id="gRen" style="flex:1">✎ Renommer le groupe</button><button class="sec" id="gDel" style="flex:1;color:var(--rouge)">Dissoudre</button></div></div>':""}
  ${GS.length&&!sm?card("home-grp","🧳 Mes groupes · touche pour afficher · ▲▼ pour ordonner",`<div class="lst">${GS.map((x,gi)=>`<div class="op" data-grp="${esc(x.g)}"><div class="m"><b>${esc(x.g)}</b><small>${x.n} opération${x.n>1?"s":""} · dépenses ${eur(x.d)}${x.r>0?" · revenus "+eur(x.r):""}</small></div><span class="am neg">${eur2(x.d-x.r)}</span><span style="display:flex;flex-direction:column;gap:3px;flex:none;width:34px">${gi>0?`<button class="sec" data-gmv="${esc(x.g)}" data-gd="-1" style="padding:1px 0;font-size:.7rem">▲</button>`:""}${gi<GS.length-1?`<button class="sec" data-gmv="${esc(x.g)}" data-gd="1" style="padding:1px 0;font-size:.7rem">▼</button>`:""}</span></div>`).join("")}</div>`):""}`}
 
 /* ---------- Onglet 2 : analyse ---------- */
