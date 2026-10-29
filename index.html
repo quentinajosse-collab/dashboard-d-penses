@@ -387,8 +387,8 @@ function lbl(g,k,i){if(g==="jour"){const m=+k.slice(5,7);return[String(+k.slice(
  if(g==="mois"){const m=+k.slice(5,7);return[MS[m-1].replace(".",""),(m===1||i===0)?k.slice(0,4):""]}
  return[k,""]}
 function bTip(g,x){const l=[tl("Dépenses",eur2(x.d),TC.r)];if(x.r>0)l.push(tl("Revenus",eur2(x.r),TC.g),tl("Solde",eur2(x.r-x.d),TC.b));l.push(tl("Opérations",x.n));return tipHtml(ttl(g,x.k),l,topCats(x.c))}
-function perSel(){const ms=months(),ys=[...new Set(ms.map(m=>m.slice(0,4)))].sort().reverse(),o=(v,l)=>`<option value="${v}" ${v===per?"selected":""}>${esc(l)}</option>`;
- return`<optgroup label="Périodes">${[["3m","3 derniers mois"],["6m","6 derniers mois"],["12m","12 derniers mois"],["all","Tout l'historique"]].map(x=>o(x[0],x[1])).join("")}</optgroup><optgroup label="Années">${ys.map(y=>o("y:"+y,y)).join("")}</optgroup><optgroup label="Mois">${ms.map(m=>o("m:"+m,cap(mlabel(m)))).join("")}</optgroup>`}
+function perSel(){const ms=months().slice().sort(),ys=[...new Set(ms.map(m=>m.slice(0,4)))].sort(),o=(v,l)=>`<option value="${v}" ${v===per?"selected":""}>${esc(l)}</option>`;
+ return`<optgroup label="Périodes">${[["all","Tout l'historique"],["12m","12 derniers mois"],["6m","6 derniers mois"],["3m","3 derniers mois"]].map(x=>o(x[0],x[1])).join("")}</optgroup><optgroup label="Années">${ys.map(y=>o("y:"+y,y)).join("")}</optgroup><optgroup label="Mois">${ms.map(m=>o("m:"+m,cap(mlabel(m)))).join("")}</optgroup>`}
 
 /* ---------- Tableau récapitulatif par année ---------- */
 function recap(){const L=OPS();if(!L.length)return'<div class="empty">Aucune donnée</div>';
@@ -432,28 +432,33 @@ function vHome(){
  grs=grpNames();
  if(UI.scat!=="all"&&!used[UI.scat])UI.scat="all";
  if(UI.hg!=="all"&&!grs.includes(UI.hg))UI.hg="all";
+ if(UI.gd&&!grs.includes(UI.gd))UI.gd="";
  if(UI.gt&&UI.gt!=="__new"&&!grs.includes(UI.gt))UI.gt="";
  const t=nrm(q.trim()),filt=!!t||UI.scat!=="all"||UI.hs!=="all"||UI.hg!=="all",sm=UI.selMode;
  /* Avec un groupe choisi, la période est ignorée : le groupe est affiché en entier */
- const L=D.depenses.map((o,i)=>({...o,i})).filter(o=>/^\d{4}-\d{2}-\d{2}$/.test(o.date||"")&&(UI.hg!=="all"?o.groupe===UI.hg:(o.date>=a&&o.date<=b))&&(UI.hs==="all"||(isRev(o)?"Revenu":"Dépense")===UI.hs)&&(UI.scat==="all"||o.categorie===UI.scat)&&(!t||nrm(o.libelle).includes(t))).sort((x,y)=>y.date.localeCompare(x.date));
+ const L=D.depenses.map((o,i)=>({...o,i})).filter(o=>/^\d{4}-\d{2}-\d{2}$/.test(o.date||"")&&(UI.hg!=="all"?o.groupe===UI.hg:(o.date>=a&&o.date<=b))&&(UI.hs==="all"||(isRev(o)?"Revenu":"Dépense")===UI.hs)&&(UI.scat==="all"||o.categorie===UI.scat)&&(!t||nrm(o.libelle).includes(t))).sort((x,y)=>y.date.localeCompare(x.date)||y.i-x.i);
  const r=L.filter(isRev).reduce((s,o)=>s+o.montant,0),d=L.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0),gk=cg(d-r);
  const GS=grs.map((g,gi)=>{const l=D.depenses.filter(o=>o.groupe===g),dd=l.filter(o=>!isRev(o)).reduce((s,o)=>s+o.montant,0),rr=l.filter(isRev).reduce((s,o)=>s+o.montant,0);return{g,pos:gi+1,n:l.length,d:dd,r:rr,ys:yearStats(g)}});
  const tgt=curTgt(),isNew=tgt==="__new";
  /* Section : créer un groupe / ajouter des opérations à un groupe */
  const crea=card("home-new","🧳 Créer un nouveau groupe / ajouter à un groupe",`<label>Groupe</label><select data-u="gt">${opt("__new","➕ Nouveau groupe",tgt)}${grs.map((g,i)=>opt(g,(i+1)+". "+g,tgt)).join("")}</select>
- ${isNew?`<div class="row" style="margin:0"><div style="flex:2;min-width:0"><label>Nom du groupe (ex. Voyage Italie)</label><input data-s="gn" value="${esc(UI.gn)}" autocomplete="off"></div><div style="flex:1;min-width:0"><label>N° dans le tableau</label><input data-s="gp" type="number" min="1" step="1" inputmode="numeric" value="${esc(UI.gp||grs.length+1)}"></div></div>`:`<div class="d" style="margin-top:6px">Groupe n° ${grs.indexOf(tgt)+1} dans le tableau des groupes</div>`}
+ ${isNew?`<div class="row" style="margin:0"><div style="flex:2;min-width:0"><label>Nom du groupe (ex. Voyage Italie)</label><input data-s="gn" value="${esc(UI.gn)}" autocomplete="off"></div><div style="flex:1.5;min-width:0"><label>N° dans le tableau</label><select data-s="gp">${Array.from({length:grs.length+1},(_,k)=>`<option value="${k+1}" ${String(k+1)===String(UI.gp||grs.length+1)?"selected":""}>${k+1}${k<grs.length?" · avant "+esc(grs[k]):" · à la fin"}</option>`).join("")}</select></div></div>`:`<div class="d" style="margin-top:6px">Groupe n° ${grs.indexOf(tgt)+1} dans le tableau des groupes</div>`}
  ${sm?`<div class="sh" style="margin-top:12px"><span id="selT">${selSum().n}</span> opération(s) sélectionnée(s)</div><div class="d" style="margin:0 0 8px">Touche les opérations dans la liste ci-dessus : le total se met à jour. Les filtres et la recherche restent utilisables.</div><div id="selBox">${selHtml()}</div>
   <div class="row" style="margin-top:10px"><button class="sec" id="selAll" style="flex:1">Tout sélectionner (liste)</button><button class="sec" id="selNone" style="flex:1">Tout désélectionner</button></div>
   <div class="row"><button id="selSave" style="flex:2">Enregistrer dans le groupe</button><button class="sec" id="selUn" style="flex:1">Retirer du groupe</button></div>
   <button class="sec" id="selEnd" style="width:100%">Terminer la sélection</button>`
  :`<button id="bGrp" style="width:100%;margin-top:12px">☑ Sélectionner des opérations dans la liste</button><button class="sec" id="bGAdd" style="width:100%;margin-top:8px">➕ Ajouter une opération oubliée (menu déroulant)</button>`}`);
- /* Gestion du groupe affiché : position, renommer, dissoudre, coût / gain par année */
- const ys=UI.hg!=="all"?yearStats(UI.hg):[];
- const mg=UI.hg!=="all"?`<div class="card"><div class="sh">🧳 Groupe « ${esc(UI.hg)} »</div><label>N° dans le tableau des groupes</label><input id="gPos" type="number" min="1" step="1" inputmode="numeric" value="${grs.indexOf(UI.hg)+1}">
+ /* Détail du groupe choisi dans la liste déroulante : position, renommer, dissoudre, coût / gain par année, opérations */
+ const ys=UI.gd?yearStats(UI.gd):[],gi0=grs.indexOf(UI.gd),cgv=v=>(v>0?"Coût ":v<0?"Gain ":"")+eur2(Math.abs(v)),
+ gOps=UI.gd?D.depenses.map((o,i)=>({...o,i})).filter(o=>o.groupe===UI.gd&&o.date).sort((x,y)=>y.date.localeCompare(x.date)||y.i-x.i):[];
+ const mg=UI.gd?`<div class="sh" style="margin-top:14px">🧳 Détail du groupe « ${esc(UI.gd)} »</div>
+ <label>N° dans le tableau des groupes</label>
+ <div class="row" style="margin:0;align-items:stretch"><button type="button" class="sec" id="gUp" style="flex:0 0 52px" ${gi0<=0?"disabled":""}>▲</button><select id="gPos" style="flex:1;min-width:0">${grs.map((g,k)=>`<option value="${k+1}" ${k===gi0?"selected":""}>${k+1}${k===gi0?" · position actuelle":" · "+esc(g)}</option>`).join("")}</select><button type="button" class="sec" id="gDn" style="flex:0 0 52px" ${gi0>=grs.length-1?"disabled":""}>▼</button></div>
  <div class="row" style="margin:10px 0 0"><button class="sec" id="gRen" style="flex:1">✎ Renommer</button><button class="sec" id="gDel" style="flex:1;color:var(--rouge)">Dissoudre</button></div>
- ${ys.length>1?`<div class="sh" style="margin-top:12px">Coût / gain par année</div><div class="tw"><table class="rc" data-sk="gyr"><thead><tr><th>Année</th><th>Dépenses</th><th>Revenus</th><th>Coût / gain net</th></tr></thead><tbody>${ys.map(y=>{const v=y.d-y.r;return`<tr><th>${y.y}</th><td class="neg">${eur2(y.d)}</td><td class="pos">${eur2(y.r)}</td><td data-v="${v}" class="${v>0?"neg":"pos"}">${v>0?"Coût ":v<0?"Gain ":""}${eur2(Math.abs(v))}</td></tr>`}).join("")}<tr class="tot"><th>Total</th><td class="neg">${eur2(ys.reduce((a,y)=>a+y.d,0))}</td><td class="pos">${eur2(ys.reduce((a,y)=>a+y.r,0))}</td><td class="${ys.reduce((a,y)=>a+y.d-y.r,0)>0?"neg":"pos"}">${(v=>(v>0?"Coût ":v<0?"Gain ":"")+eur2(Math.abs(v)))(ys.reduce((a,y)=>a+y.d-y.r,0))}</td></tr></tbody></table></div>`:""}</div>`:"";
+ ${ys.length>1?`<div class="sh" style="margin-top:12px">Coût / gain par année</div><div class="tw"><table class="rc" data-sk="gyr"><thead><tr><th>Année</th><th>Dépenses</th><th>Revenus</th><th>Coût / gain net</th></tr></thead><tbody>${ys.map(y=>{const v=y.d-y.r;return`<tr><th>${y.y}</th><td class="neg">${eur2(y.d)}</td><td class="pos">${eur2(y.r)}</td><td data-v="${v}" class="${v>0?"neg":"pos"}">${cgv(v)}</td></tr>`}).join("")}<tr class="tot"><th>Total</th><td class="neg">${eur2(ys.reduce((a,y)=>a+y.d,0))}</td><td class="pos">${eur2(ys.reduce((a,y)=>a+y.r,0))}</td><td class="${ys.reduce((a,y)=>a+y.d-y.r,0)>0?"neg":"pos"}">${cgv(ys.reduce((a,y)=>a+y.d-y.r,0))}</td></tr></tbody></table></div>`:""}
+ <div class="sh" style="margin-top:12px">Opérations du groupe · ${gOps.length}</div><div class="tw"><table class="rc"><thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead><tbody>${gOps.map(o=>`<tr data-gop="${o.i}" style="cursor:pointer"><td style="white-space:nowrap">${fdy(o.date)}</td><td style="text-align:left;white-space:normal">${esc(o.libelle)}</td><td class="${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</td></tr>`).join("")}</tbody></table></div>`:"";
  /* Tableau de tous les groupes */
- const tbl=GS.length?`<div class="tw"><table class="rc" data-sk="grp"><thead><tr><th>N°</th><th>Groupe</th><th>Dépenses</th><th>Revenus</th><th>Coût / gain net</th></tr></thead><tbody>${GS.map(x=>{const v=x.d-x.r;return`<tr data-grp="${esc(x.g)}" style="cursor:pointer"><td data-v="${x.pos}"><b>${x.pos}</b></td><td style="text-align:left;white-space:normal;min-width:110px"><b>${esc(x.g)}</b><div class="d">${x.n} opération${x.n>1?"s":""}${x.ys.length>1?" · "+x.ys.map(y=>y.y+" : "+cgTxt(y.d-y.r)).join(" · "):""}</div></td><td data-v="${x.d}" class="neg">${eur2(x.d)}</td><td data-v="${x.r}" class="pos">${eur2(x.r)}</td><td data-v="${v}" class="${v>0?"neg":"pos"}">${v>0?"Coût ":v<0?"Gain ":""}${eur2(Math.abs(v))}</td></tr>`}).join("")}</tbody></table></div>`:'<div class="empty">Aucun groupe pour le moment</div>';
+ const tbl=GS.length?`<div class="tw"><table class="rc" data-sk="grp"><thead><tr><th>N°</th><th>Groupe</th><th>Dépenses</th><th>Revenus</th><th>Coût / gain net</th></tr></thead><tbody>${GS.map(x=>{const v=x.d-x.r;return`<tr><td data-v="${x.pos}"><b>${x.pos}</b></td><td style="text-align:left;white-space:normal;min-width:110px"><b>${esc(x.g)}</b><div class="d">${x.n} opération${x.n>1?"s":""}</div></td><td data-v="${x.d}" class="neg">${eur2(x.d)}</td><td data-v="${x.r}" class="pos">${eur2(x.r)}</td><td data-v="${v}" class="${v>0?"neg":"pos"}">${v>0?"Coût ":v<0?"Gain ":""}${eur2(Math.abs(v))}</td></tr>`}).join("")}</tbody></table></div>`:'<div class="empty">Aucun groupe pour le moment</div>';
  return`<div class="card" style="margin-top:0"><div class="sh">🗓️ Période affichée et recherche</div>
  <label>Période</label><select id="pSel">${perSel()}</select>
  <label>Rechercher (libellé)</label><input id="q" placeholder="🔍 Ex. coiffeur, pharmacie…" value="${esc(q)}" autocomplete="off">
@@ -467,8 +472,7 @@ function vHome(){
  ${UI.hg!=="all"?`<div class="kpi wide" style="--c:var(--${gk.c})"><span>${gk.l} du groupe « ${esc(UI.hg)} »</span><b>${eur(gk.v)}</b></div>`:""}</div>
  ${card("home-list",(UI.hg!=="all"?"Groupe « "+esc(UI.hg)+" » · ":"Opérations sur la période · ")+L.length,`<div class="lst">${L.length?L.map(o=>`<div class="op${sm&&UI.sel.has(o.i)?" sel":""}" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}${o.groupe?" · 🧳 "+esc(o.groupe):""}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span class="ck" style="color:var(--mut)">${sm?(UI.sel.has(o.i)?"☑":"☐"):"✎"}</span></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`,"margin-top:0")}
  ${crea}
- ${mg}
- ${card("home-grp","🧳 Mes groupes · touche une ligne pour l'afficher · touche un titre pour trier",tbl)}`}
+ ${card("home-grp","🧳 Mes groupes · touche un titre pour trier",tbl+(grs.length?`<label style="margin-top:12px">Voir le détail d'un groupe</label><select data-u="gd"><option value="">— Choisir un groupe —</option>${grs.map((g,k)=>opt(g,(k+1)+". "+g,UI.gd||"")).join("")}</select>`:"")+mg)}`}
 
 /* ---------- Onglet 2 : analyse ---------- */
 function vAna(){
@@ -664,7 +668,7 @@ function vInt(){
  ${card("int-yr","Intéressement / participation / abondement / PPV par année",chart+`<div class="lst">${yrRows}</div>`)}
  ${card("int-hist","Historique · touche une ligne pour la modifier",`<div class="lst">${L.slice().reverse().map(s=>`<div class="op" data-int="${s.i}"><div class="m"><b>${esc(s.type)}</b><small>${fdy(s.date)}${s.employeur?" · "+esc(s.employeur):""} · ${esc(s.dest||"")}${s.brut>0?" · brut "+eur2(s.brut):""}</small></div><span class="pos am">${eur2(s.montant)}</span><span style="color:var(--mut)">✎</span></div>`).join("")}</div>`)}`}
 /* ---------- Nouveaux onglets : Recherche, Santé, Impôts ---------- */
-const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all",hs:"all",hPr:"o",hS:"n",hMon:null,hg:"all",selMode:false,sel:new Set(),gt:"",gn:"",gp:"",addG:""};
+const UI={sq:"",scat:"all",ssens:"Dépense",syr:"all",hAct:"gen",hPrix:null,hQty:1,fy:null,iy:"all",hs:"all",hPr:"o",hS:"n",hMon:null,hg:"all",gd:"",selMode:false,sel:new Set(),gt:"",gn:"",gp:"",addG:""};
 const nrm=s=>String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 const fp=v=>(+v.toFixed(1)+"").replace(".",",")+" %";
 const opt=(v,l,cur)=>`<option value="${esc(v)}" ${String(v)===String(cur)?"selected":""}>${esc(l)}</option>`;
@@ -817,7 +821,7 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  const qi=$("#q");if(qi)qi.oninput=e=>{q=e.target.value.toLowerCase();const p=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(p,p)};
  document.querySelectorAll("[data-op]").forEach(b=>b.onclick=()=>{const i=+b.dataset.op;if(!UI.selMode)return openOp(i);
   UI.sel.has(i)?UI.sel.delete(i):UI.sel.add(i);b.classList.toggle("sel",UI.sel.has(i));const k=b.querySelector(".ck");if(k)k.textContent=UI.sel.has(i)?"☑":"☐";refSel()});
- document.querySelectorAll("[data-grp]").forEach(b=>b.onclick=()=>{UI.hg=b.dataset.grp;UI.gt="";render();scrollTo(0,0)});
+ document.querySelectorAll("[data-gop]").forEach(b=>b.onclick=()=>openOp(+b.dataset.gop));
  const g=(id,f)=>{const e=$(id);if(e)e.onclick=f};
  document.querySelectorAll("[data-u]").forEach(el=>{const k=el.dataset.u,f=()=>{UI[k]=el.type==="number"?(el.value===""?"":parseFloat(el.value)):el.value;if(k==="hAct"){UI.hPrix=null;UI.hMon=null}if(k==="hg")UI.gt=""};
   if(el.dataset.live)el.oninput=()=>{f();const p=el.selectionStart;render();const n=document.querySelector('[data-u="'+k+'"]');n.focus();try{n.setSelectionRange(p,p)}catch(e){}};else el.onchange=()=>{f();render()}});
@@ -833,9 +837,11 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
  g("#selSave",()=>{if(!UI.sel.size)return alert("Sélectionne d'abord des opérations.");const t=curTgt(),name=t==="__new"?(UI.gn||"").trim():t;if(!name)return alert("Saisis un nom de groupe.");
   assignGroup(name,[...UI.sel],UI.gp);UI.selMode=false;UI.sel=new Set();UI.hg=name;UI.gt="";UI.gn="";UI.gp="";render();scrollTo(0,0)});
  document.querySelectorAll("[data-s]").forEach(el=>el.oninput=()=>{UI[el.dataset.s]=el.value});
- const gpi=$("#gPos");if(gpi)gpi.onchange=()=>gsetpos(UI.hg,parseInt(gpi.value));
- g("#gRen",()=>{const n=(prompt("Nouveau nom du groupe :",UI.hg)||"").trim();if(!n||n===UI.hg)return;D.depenses.forEach(o=>{if(o.groupe===UI.hg)o.groupe=n});D.groupes=(D.groupes||[]).map(x=>x.nom===UI.hg?{nom:n}:x);UI.hg=n;save();render()});
- g("#gDel",()=>{if(confirm("Dissoudre le groupe « "+UI.hg+" » ? Les opérations sont conservées.")){D.depenses.forEach(o=>{if(o.groupe===UI.hg)delete o.groupe});UI.hg="all";save();render()}});
+ const gpi=$("#gPos");if(gpi)gpi.onchange=()=>gsetpos(UI.gd,parseInt(gpi.value));
+ g("#gUp",()=>{const i=grpNames().indexOf(UI.gd);if(i>0)gsetpos(UI.gd,i)});
+ g("#gDn",()=>{const L=grpNames(),i=L.indexOf(UI.gd);if(i>=0&&i<L.length-1)gsetpos(UI.gd,i+2)});
+ g("#gRen",()=>{const n=(prompt("Nouveau nom du groupe :",UI.gd)||"").trim();if(!n||n===UI.gd)return;D.depenses.forEach(o=>{if(o.groupe===UI.gd)o.groupe=n});D.groupes=(D.groupes||[]).map(x=>x.nom===UI.gd?{nom:n}:x);if(UI.hg===UI.gd)UI.hg=n;UI.gd=n;save();render()});
+ g("#gDel",()=>{if(confirm("Dissoudre le groupe « "+UI.gd+" » ? Les opérations sont conservées.")){D.depenses.forEach(o=>{if(o.groupe===UI.gd)delete o.groupe});if(UI.hg===UI.gd)UI.hg="all";UI.gd="";save();render()}});
  const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
  
  document.querySelectorAll("[data-sal]").forEach(b=>b.onclick=()=>openSal(+b.dataset.sal));
@@ -904,7 +910,7 @@ $("#file").onchange=async e=>{const files=[...e.target.files];e.target.value="";
 
 /* Ajouter une opération oubliée à un groupe : menu déroulant des opérations hors groupe */
 function aList(){const g=UI.addG,m=D.depenses.filter(o=>o.groupe===g&&o.date).map(o=>o.date),near=$("#aP").value==="near"&&m.length,lo=near?addD(m.reduce((x,y)=>x<y?x:y),-31):"",hi=near?addD(m.reduce((x,y)=>x>y?x:y),31):"",t=nrm($("#aQ").value.trim());
- return D.depenses.map((o,i)=>({o,i})).filter(x=>x.o.date&&x.o.groupe!==g&&(!near||(x.o.date>=lo&&x.o.date<=hi))&&(!t||nrm(x.o.libelle).includes(t))).sort((a,b)=>b.o.date.localeCompare(a.o.date))}
+ return D.depenses.map((o,i)=>({o,i})).filter(x=>x.o.date&&x.o.groupe!==g&&(!near||(x.o.date>=lo&&x.o.date<=hi))&&(!t||nrm(x.o.libelle).includes(t))).sort((a,b)=>b.o.date.localeCompare(a.o.date)||b.i-a.i)}
 function aFill(){const L=aList(),sl=L.slice(0,300);$("#aSel").innerHTML=sl.length?sl.map(x=>`<option value="${x.i}">${esc(fdy(x.o.date)+" · "+x.o.libelle+" · "+(isRev(x.o)?"+":"−")+eur2(x.o.montant)+(x.o.groupe?" (🧳 "+x.o.groupe+")":""))}</option>`).join(""):'<option value="">Aucune opération trouvée</option>';
  $("#aAdd").disabled=!sl.length;$("#aInfo").textContent=L.length+" opération(s) disponible(s)"+(L.length>300?" · 300 affichées : affine la recherche":"")}
 function openAdd(name){UI.addG=name;$("#aT").textContent="Ajouter au groupe « "+name+" »";$("#aQ").value="";$("#aP").value="near";$("#aMsg").textContent="";aFill();$("#dlgA").showModal()}
@@ -946,7 +952,7 @@ $("#frm").onsubmit=e=>{const on=!!(oAllow&&sens==="Revenu"&&$("#fCat").value==="
    else D.depenses[oIdx]={...old,...o}}
   else D.depenses.push(o)}
  {const gi=oIdx>=0?oIdx:D.depenses.length-1,gv=$("#fGrp").value;if(D.depenses[gi]){if(gv)D.depenses[gi].groupe=gv;else delete D.depenses[gi].groupe}}
- save();per="m:"+date.slice(0,7);render()};
+ save();if(oIdx<0)per="m:"+date.slice(0,7);render()};
 function openOp(i){oIdx=i;const o=D.depenses[i];oAllow=!!o.lien;oLink=o.lien||null;salOn=false;$("#frm").reset();$("#opTitle").textContent="Modifier l'opération";setSens(isRev(o)?"Revenu":"Dépense");
  $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(x=>x.libelle))].map(l=>`<option value="${esc(l)}">`).join("");
  $("#fLib").value=o.libelle;$("#fMt").value=o.montant;
