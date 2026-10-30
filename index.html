@@ -58,6 +58,7 @@ nav button:hover{background:color-mix(in srgb,var(--bleu) 8%,transparent);color:
 nav button.on{background:color-mix(in srgb,var(--bleu) 10%,transparent);color:var(--bleu)}
 nav button.on::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:linear-gradient(90deg,var(--bleu),var(--violet))}
 .fab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;font-size:1.8rem;padding:0;z-index:10;box-shadow:0 8px 22px rgba(124,58,237,.4)}
+.fabbg{position:fixed;inset:0;z-index:12;background:rgba(15,23,42,.35);display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;gap:10px;padding:0 16px calc(88px + env(safe-area-inset-bottom))}.fabbg.hide{display:none!important}.fabbg button{padding:13px 20px;font-size:.95rem;border-radius:26px;box-shadow:0 8px 22px rgba(15,23,42,.3)}
 .selbar{position:fixed;left:12px;right:84px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:11;display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.22)}.selbar .t{flex:1;min-width:0;font-size:.8rem;line-height:1.25}.selbar .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.selbar button{padding:9px 12px;font-size:.85rem}
 dialog{border:0;border-radius:18px;padding:16px;width:min(94vw,440px);background:var(--card);color:var(--txt)}
 dialog::backdrop{background:rgba(15,23,42,.5)}
@@ -160,6 +161,7 @@ g[data-tip]{cursor:pointer}
 <header><h1>💶 Mes Dépenses, Salaires, Primes, Crédit, Santé &amp; Impôts</h1><small id="sub"></small></header>
 <main><nav id="nav"></nav><div id="app"></div></main>
 <button class="fab" id="fab" aria-label="Ajouter">+</button>
+<div class="fabbg hide" id="fabBg"><button id="fabG">🧳 Nouveau groupe</button><button id="fabO">➕ Nouvelle opération</button></div>
 
 <dialog id="dlg"><form method="dialog" id="frm">
  <h3 id="opTitle" style="margin:0 0 4px">Nouvelle opération</h3>
@@ -167,7 +169,7 @@ g[data-tip]{cursor:pointer}
  <label>Libellé</label><input id="fLib" required autocomplete="off" list="libs">
  <datalist id="libs"></datalist>
  <div id="fMtW"><label>Montant (€)</label><input id="fMt" type="number" step="0.01" min="0.01" inputmode="decimal" required></div>
- <label>Catégorie</label><select id="fCat"></select>
+ <label>Catégorie</label><select id="fCat" required></select>
  <div id="fGrpW"><label>Groupe (voyage, projet…)</label><select id="fGrp"></select></div>
  <label>Date</label><input id="fDate" type="date" required>
  <div id="fSalW" class="hide">
@@ -180,6 +182,15 @@ g[data-tip]{cursor:pointer}
  <div class="rqn">Les champs encadrés en rouge sont obligatoires.</div>
  <div class="row" style="margin-top:14px"><button type="button" class="sec" id="fCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Enregistrer</button></div>
  <button type="button" class="sec hide" id="fDel" style="width:100%;color:var(--rouge)">🗑 Supprimer cette opération</button>
+</form></dialog>
+
+<dialog id="dlgG"><form method="dialog" id="frmG">
+ <h3 style="margin:0 0 4px">🧳 Nouveau groupe</h3>
+ <div class="d">Donne un nom au groupe, puis choisis ses opérations dans la liste.</div>
+ <label>Nom du groupe (ex. Voyage Italie)</label><input id="gNNom" required autocomplete="off">
+ <label>N° dans le tableau des groupes</label><select id="gNPos"></select>
+ <div class="rqn">Les champs encadrés en rouge sont obligatoires.</div>
+ <div class="row" style="margin-top:14px"><button type="button" class="sec" id="gNCancel" style="flex:1">Annuler</button><button type="submit" style="flex:2">Choisir les opérations</button></div>
 </form></dialog>
 
 <dialog id="dlgS"><form method="dialog" id="frmS">
@@ -436,19 +447,14 @@ function vHome(){
  /* Section : créer un groupe / ajouter des opérations à un groupe */
  const tn=isNew?((UI.gn||"").trim()||"nouveau groupe"):tgt,
  selBar=sm?`<div class="selbar"><div class="t"><b>🧳 ${esc(tn)}</b><span id="selLine">${selLine()}</span></div><button class="sec" id="selEnd">Annuler</button><button id="selSave">Ajouter</button></div>`:"";
- const crea=card("home-new","➕ Ajouter des opérations à un groupe",`<div class="d" style="margin:0 0 10px">① Choisis le groupe · ② touche les opérations dans la liste des opérations · ③ valide avec « Ajouter ».</div>
- <label>Groupe</label><select data-u="gt">${opt("__new","➕ Nouveau groupe",tgt)}${grs.map((g,i)=>opt(g,(i+1)+". "+g,tgt)).join("")}</select>
- ${isNew?`<div class="row" style="margin:0"><div style="flex:2;min-width:0"><label>Nom du groupe (ex. Voyage Italie)</label><input data-s="gn" value="${esc(UI.gn)}" autocomplete="off"></div><div style="flex:1.5;min-width:0"><label>N° dans le tableau</label><select data-s="gp">${Array.from({length:grs.length+1},(_,k)=>`<option value="${k+1}" ${String(k+1)===String(UI.gp||grs.length+1)?"selected":""}>${k+1}${k<grs.length?" · avant "+esc(grs[k]):" · à la fin"}</option>`).join("")}</select></div></div>`:`<div class="d" style="margin-top:6px">Groupe n° ${grs.indexOf(tgt)+1} dans le tableau des groupes</div>`}
- ${sm?`<div class="d" style="margin-top:10px">Sélection en cours : valide avec le bouton « Ajouter » en bas de l'écran.</div><div class="row" style="margin-top:6px"><button class="sec" id="selAll" style="flex:1">Tout sélectionner</button><button class="sec" id="selNone" style="flex:1">Tout désélectionner</button></div><button class="sec" id="selUn" style="width:100%">Retirer du groupe les opérations cochées</button>`
- :`<button id="bGrp" style="width:100%;margin-top:12px">☑ Choisir les opérations dans la liste</button>`}`);
  /* Détail du groupe choisi dans la liste déroulante : position, renommer, dissoudre, coût / gain par année, opérations */
  const ys=UI.gd?yearStats(UI.gd):[],gi0=grs.indexOf(UI.gd),cgv=v=>(v>0?"Coût ":v<0?"Gain ":"")+eur2(Math.abs(v)),
  gOps=UI.gd?D.depenses.map((o,i)=>({...o,i})).filter(o=>o.groupe===UI.gd&&o.date).sort((x,y)=>y.date.localeCompare(x.date)||y.i-x.i):[];
  const mg=UI.gd?`<div class="sh" style="margin-top:14px">🧳 Détail du groupe « ${esc(UI.gd)} »</div>
+ <button id="gAddOps" style="width:100%;margin-bottom:10px">➕ Ajouter des opérations à ce groupe</button>
  <label>N° dans le tableau des groupes</label>
- <div class="row" style="margin:0;align-items:stretch"><button type="button" class="sec" id="gUp" style="flex:0 0 52px" ${gi0<=0?"disabled":""}>▲</button><select id="gPos" style="flex:1;min-width:0">${grs.map((g,k)=>`<option value="${k+1}" ${k===gi0?"selected":""}>${k+1}${k===gi0?" · position actuelle":" · "+esc(g)}</option>`).join("")}</select><button type="button" class="sec" id="gDn" style="flex:0 0 52px" ${gi0>=grs.length-1?"disabled":""}>▼</button></div>
+ <div class="row" style="margin:0"><select id="gPos" style="flex:1;min-width:0">${grs.map((g,k)=>`<option value="${k+1}" ${k===gi0?"selected":""}>${k+1}${k===gi0?" · position actuelle":" · "+esc(g)}</option>`).join("")}</select></div>
  <div class="row" style="margin:10px 0 0"><button class="sec" id="gRen" style="flex:1">✎ Renommer</button><button class="sec" id="gDel" style="flex:1;color:var(--rouge)">Dissoudre</button></div>
- <button class="sec" id="gAddOps" style="width:100%;margin-top:8px">➕ Ajouter des opérations (les choisir dans la liste)</button>
  ${ys.length>1?`<div class="sh" style="margin-top:12px">Coût / gain par année</div><div class="tw"><table class="rc" data-sk="gyr"><thead><tr><th>Année</th><th>Dépenses</th><th>Revenus</th><th>Coût / gain net</th></tr></thead><tbody>${ys.map(y=>{const v=y.d-y.r;return`<tr><th>${y.y}</th><td class="neg">${eur2(y.d)}</td><td class="pos">${eur2(y.r)}</td><td data-v="${v}" class="${v>0?"neg":"pos"}">${cgv(v)}</td></tr>`}).join("")}<tr class="tot"><th>Total</th><td class="neg">${eur2(ys.reduce((a,y)=>a+y.d,0))}</td><td class="pos">${eur2(ys.reduce((a,y)=>a+y.r,0))}</td><td class="${ys.reduce((a,y)=>a+y.d-y.r,0)>0?"neg":"pos"}">${cgv(ys.reduce((a,y)=>a+y.d-y.r,0))}</td></tr></tbody></table></div>`:""}
  <div class="sh" style="margin-top:12px">Opérations du groupe · ${gOps.length}</div><div class="tw"><table class="rc"><thead><tr><th>Date</th><th>Libellé</th><th>Montant</th></tr></thead><tbody>${gOps.map(o=>`<tr data-gop="${o.i}" style="cursor:pointer"><td style="white-space:nowrap">${fdy(o.date)}</td><td style="text-align:left;white-space:normal">${esc(o.libelle)}</td><td class="${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</td></tr>`).join("")}</tbody></table></div>`:"";
  /* Tableau de tous les groupes */
@@ -464,10 +470,9 @@ function vHome(){
  <div class="kpis"><div class="kpi" style="--c:var(--vert)"><span>Revenus</span><b>${eur(r)}</b></div><div class="kpi" style="--c:var(--rouge)"><span>Dépenses</span><b>${eur(d)}</b></div>
  <div class="kpi wide" style="--c:var(--bleu)"><span>Solde</span><b>${eur(r-d)}</b></div>
  ${UI.hg!=="all"?`<div class="kpi wide" style="--c:var(--${gk.c})"><span>${gk.l} du groupe « ${esc(UI.hg)} »</span><b>${eur(gk.v)}</b></div>`:""}</div>
- <div id="opList" style="scroll-margin-top:70px">${card("home-list",(UI.hg!=="all"?"Groupe « "+esc(UI.hg)+" » · ":"Opérations sur la période · ")+L.length,`${sm?`<div style="background:color-mix(in srgb,var(--bleu) 12%,var(--card));border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:.82rem">☑ Touche les opérations à ajouter au groupe « ${esc(tn)} ». Les filtres et la recherche restent utilisables.</div>`:""}<div class="lst">${L.length?L.map(o=>`<div class="op${sm&&UI.sel.has(o.i)?" sel":""}" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}${o.groupe?" · 🧳 "+esc(o.groupe):""}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span class="ck" style="color:var(--mut)">${sm?(UI.sel.has(o.i)?"☑":"☐"):"✎"}</span></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`,"margin-top:0")}</div>
+ <div id="opList" style="scroll-margin-top:70px">${card("home-list",(UI.hg!=="all"?"Groupe « "+esc(UI.hg)+" » · ":"Opérations sur la période · ")+L.length,`${sm?`<div style="background:color-mix(in srgb,var(--bleu) 12%,var(--card));border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:.82rem">☑ Touche les opérations à ajouter au groupe « ${esc(tn)} ». Les filtres et la recherche restent utilisables.<div class="row" style="margin:8px 0 0"><button class="sec" id="selAll" style="flex:1">Tout sélectionner</button><button class="sec" id="selNone" style="flex:1">Tout désélectionner</button></div><button class="sec" id="selUn" style="width:100%;margin-top:6px">Retirer du groupe les opérations cochées</button></div>`:""}<div class="lst">${L.length?L.map(o=>`<div class="op${sm&&UI.sel.has(o.i)?" sel":""}" data-op="${o.i}"><div class="m"><b>${esc(o.libelle)}</b><small>${fdy(o.date)} · ${esc(o.categorie)}${o.groupe?" · 🧳 "+esc(o.groupe):""}</small></div><span class="am ${isRev(o)?"pos":"neg"}">${isRev(o)?"+":"−"}${eur2(o.montant)}</span><span class="ck" style="color:var(--mut)">${sm?(UI.sel.has(o.i)?"☑":"☐"):"✎"}</span></div>`).join(""):'<div class="empty">Aucune opération</div>'}</div>`,"margin-top:0")}</div>
  <div id="grpSec" style="scroll-margin-top:70px"><div class="sh" style="margin:18px 4px 8px">🧳 Groupes de dépenses</div>
- ${card("home-grp","🧳 Mes groupes · touche un titre pour trier",tbl+(grs.length?`<label style="margin-top:12px">Voir le détail d'un groupe</label><select data-u="gd"><option value="">— Choisir un groupe —</option>${grs.map((g,k)=>opt(g,(k+1)+". "+g,UI.gd||"")).join("")}</select>`:"")+mg)}
- ${crea}</div>${selBar}`}
+ ${card("home-grp","🧳 Mes groupes · touche un titre pour trier",tbl+(grs.length?`<label style="margin-top:12px">Voir le détail d'un groupe</label><select data-u="gd"><option value="">— Choisir un groupe —</option>${grs.map((g,k)=>opt(g,(k+1)+". "+g,UI.gd||"")).join("")}</select>`:"")+mg)}</div>${selBar}`}
 
 /* ---------- Onglet 2 : analyse ---------- */
 function vAna(){
@@ -833,8 +838,6 @@ function bind(){document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
   assignGroup(name,[...UI.sel],UI.gp);UI.selMode=false;UI.sel=new Set();UI.gd=name;UI.gt="";UI.gn="";UI.gp="";render();const e=$("#grpSec");if(e)e.scrollIntoView({behavior:"smooth"})});
  document.querySelectorAll("[data-s]").forEach(el=>el.oninput=()=>{UI[el.dataset.s]=el.value});
  const gpi=$("#gPos");if(gpi)gpi.onchange=()=>gsetpos(UI.gd,parseInt(gpi.value));
- g("#gUp",()=>{const i=grpNames().indexOf(UI.gd);if(i>0)gsetpos(UI.gd,i)});
- g("#gDn",()=>{const L=grpNames(),i=L.indexOf(UI.gd);if(i>=0&&i<L.length-1)gsetpos(UI.gd,i+2)});
  g("#gRen",()=>{const n=(prompt("Nouveau nom du groupe :",UI.gd)||"").trim();if(!n||n===UI.gd)return;D.depenses.forEach(o=>{if(o.groupe===UI.gd)o.groupe=n});D.groupes=(D.groupes||[]).map(x=>x.nom===UI.gd?{nom:n}:x);if(UI.hg===UI.gd)UI.hg=n;UI.gd=n;save();render()});
  g("#gDel",()=>{if(confirm("Dissoudre le groupe « "+UI.gd+" » ? Les opérations sont conservées.")){D.depenses.forEach(o=>{if(o.groupe===UI.gd)delete o.groupe});if(UI.hg===UI.gd)UI.hg="all";UI.gd="";save();render()}});
  const ss=$("#sSel");if(ss)ss.onchange=e=>{salY=e.target.value;render()};
@@ -914,10 +917,19 @@ function syncSal(){const on=!!(oAllow&&sens==="Revenu"&&$("#fCat").value==="Sala
  if(on&&!salOn){if(oLink==null)$("#fLib").value="Salaire";if(!$("#fEmp").value)$("#fEmp").value=lastEmp();
   $("#emps2").innerHTML=[...new Set(D.salaires.map(x=>x.employeur).filter(Boolean))].map(l=>`<option value="${esc(l)}">`).join("")}
  salOn=on;updA()}
-function setSens(s){sens=s;$("#sD").style.outline=s==="Dépense"?"2px solid var(--bleu)":"none";$("#sR").style.outline=s==="Revenu"?"2px solid var(--bleu)":"none";$("#fCat").innerHTML=catsFor(s).map(c=>`<option>${esc(c)}</option>`).join("");syncSal()}
+function setSens(s){sens=s;$("#sD").style.outline=s==="Dépense"?"2px solid var(--bleu)":"none";$("#sR").style.outline=s==="Revenu"?"2px solid var(--bleu)":"none";$("#fCat").innerHTML=(oIdx<0?'<option value=""></option>':"")+catsFor(s).map(c=>`<option>${esc(c)}</option>`).join("");syncSal()}
 function fillGrp(cur){const L=grpNames();$("#fGrpW").classList.toggle("hide",!L.length);$("#fGrp").innerHTML='<option value="">— Aucun —</option>'+L.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");$("#fGrp").value=cur&&L.includes(cur)?cur:""}
-$("#fab").onclick=()=>{if(tab==="int")return openInt(-1);if(tab==="cred")return openPret(-1);if(tab==="rec")return openRec(-1);oIdx=-1;oAllow=true;oLink=null;salOn=false;$("#opTitle").textContent="Nouvelle opération";$("#fDel").classList.add("hide");$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");fillGrp(UI.hg!=="all"?UI.hg:"");
- $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(o=>o.libelle))].map(l=>`<option value="${esc(l)}">`).join("");dlg.showModal()};
+$("#fab").onclick=()=>{if(tab==="int")return openInt(-1);if(tab==="cred")return openPret(-1);if(tab==="rec")return openRec(-1);$("#fabBg").classList.remove("hide")};
+function newOp(){oIdx=-1;oAllow=true;oLink=null;salOn=false;$("#opTitle").textContent="Nouvelle opération";$("#fDel").classList.add("hide");$("#frm").reset();$("#fDate").value=TODAY();setSens("Dépense");fillGrp(UI.hg!=="all"?UI.hg:"");
+ $("#libs").innerHTML=[...new Set(D.depenses.slice(-400).map(o=>o.libelle))].map(l=>`<option value="${esc(l)}">`).join("");dlg.showModal()}
+$("#fabBg").onclick=e=>{if(e.target.id==="fabBg")e.target.classList.add("hide")};
+$("#fabO").onclick=()=>{$("#fabBg").classList.add("hide");newOp()};
+$("#fabG").onclick=()=>{$("#fabBg").classList.add("hide");if(tab!=="home"){tab="home";saveTab();render();scrollTo(0,0)}
+ const L=grpNames();$("#frmG").reset();$("#gNPos").innerHTML=Array.from({length:L.length+1},(_,k)=>`<option value="${k+1}">${k+1}${k<L.length?" · avant "+esc(L[k]):" · à la fin"}</option>`).join("");$("#gNPos").value=String(L.length+1);$("#dlgG").showModal()};
+$("#gNCancel").onclick=()=>$("#dlgG").close();
+$("#frmG").onsubmit=e=>{const n=$("#gNNom").value.trim();if(!n){e.preventDefault();return}
+ if(grpNames().some(x=>x.toLowerCase()===n.toLowerCase())){e.preventDefault();alert("Ce groupe existe déjà : ajoute-lui des opérations depuis « Mes groupes ».");return}
+ UI.gt="__new";UI.gn=n;UI.gp=$("#gNPos").value;UI.selMode=true;UI.sel=new Set();render();const l=$("#opList");if(l)l.scrollIntoView({behavior:"smooth"})};
 $("#sD").onclick=()=>setSens("Dépense");$("#sR").onclick=()=>setSens("Revenu");$("#fCancel").onclick=()=>dlg.close();
 $("#fCat").onchange=syncSal;$("#fNet").oninput=updA;$("#fImp").oninput=updA;
 $("#fLib").onchange=e=>{const m=[...D.depenses].reverse().find(o=>o.libelle.toLowerCase()===e.target.value.toLowerCase());if(m&&oIdx<0){setSens(isRev(m)?"Revenu":"Dépense");$("#fCat").value=m.categorie;syncSal()}};
